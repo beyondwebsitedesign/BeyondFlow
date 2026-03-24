@@ -1,0 +1,209 @@
+<!-- frontend/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BeyondFlow Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/jpg" href="images/B.png">
+  <link rel="apple-touch-icon" href="images/B.png">
+ <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
+    <script>
+
+      document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'dayGridMonth'
+        });
+        calendar.render();
+      });
+
+    </script>
+    </head>
+<body>
+    
+  <!-- LOGIN OVERLAY -->
+  <div id="login-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;display:flex;align-items:center;justify-content:center;z-index:1000;">
+    <form id="login-form" style="display:flex;flex-direction:column;gap:10px;padding:20px;border:1px solid #ccc;border-radius:8px;">
+      <h2>Login</h2>
+      <input type="text" id="username" placeholder="Username" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+  </div>
+
+  <!-- DASHBOARD APP -->
+  <div id="app" style="display:none;">
+    <section id="stats">
+      <div class="card">
+        <h3>Total Clients</h3>
+        <p id="total-clients">0</p>
+      </div>
+      <div class="card">
+        <h3>Total Referrals</h3>
+        <p id="total-referrals">0</p>
+      </div>
+      <div class="card">
+        <h3>Total Credits</h3>
+        <p id="total-credits">$0</p>
+      </div>
+    </section>
+
+<!-- Dashboard Header -->
+<div id="dashboard-header" style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
+  <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:150px;" loading="lazy" draggable="false">
+  <h1>BeyondFlow Dashboard</h1>
+  <div id="daily-verse"></div>
+</div>
+</div>
+    <!-- Clients Section -->
+    <section id="clients-section">
+      <h2>Clients</h2>
+      <label for="client-sort">Sort by:</label>
+  <select id="client-sort" onchange="fetchClients()">
+    <option value="name-asc">Name A→Z</option>
+    <option value="name-desc">Name Z→A</option>
+    <option value="email">Email</option>
+    <option value="phone">Phone</option>
+  </select>
+      <ul id="clients-list"></ul>
+      <input type="text" id="client-name" placeholder="Name">
+      <input type="text" id="client-phone" placeholder="Phone">
+      <input type="email" id="client-email" placeholder="Email">
+<button onclick="addClient()">Add Client</button>
+  <button onclick="exportClientsCSV()">Export Clients</button>
+  <button onclick="importClientsCSV()">Import Clients</button>
+        <input type="file" id="import-file" />
+    </section>
+
+    <!-- Referrals Section -->
+    <section id="referrals-section">
+      <h2>Referrals</h2>
+      <label for="referral-sort">Sort referrals by:</label>
+<select id="referral-sort" onchange="fetchReferrals()">
+  <option value="referrer-asc">Referrer A→Z</option>
+  <option value="referrer-desc">Referrer Z→A</option>
+  <option value="credit">Credit</option>
+</select>
+      <ul id="referrals-list"></ul>
+      <input type="text" id="referrer-name" placeholder="Referrer Name">
+      <input type="text" id="referred-name" placeholder="Referred Client Name">
+      <select id="referral-type">
+        <option value="standard">Standard ($25)</option>
+        <option value="partner">Partner ($30)</option>
+      </select>
+  <button onclick="addReferral()">Add Referral</button>
+    </section>
+
+    <!-- Client Profile -->
+    <section id="client-profile" style="display:none;">
+        <button onclick="closeProfile()">Close</button>
+
+      <h2 id="profile-name"></h2>
+      <p>Phone: <span id="profile-phone"></span></p>
+      <p>Email: <span id="profile-email"></span></p>
+
+      <h3>Referrals</h3>
+      <ul id="profile-referrals"></ul>
+
+      <h3>Notes</h3>
+      <textarea id="profile-notes" placeholder="Write notes about this client..." rows="4" cols="50"></textarea>
+  <button onclick="saveNotes()">Save Notes</button>
+
+      <h3>Status</h3>
+<select id="profile-status">
+  <option value="Lead">Lead</option>
+  <option value="Active">Active</option>
+  <option value="Complete">Complete</option>
+</select>
+<button onclick="saveStatus()">Save Status</button>
+
+      <h3>Projects</h3>
+      <ul id="profile-projects"></ul>
+
+      <input type="text" id="project-name" placeholder="Project Name">
+      <input type="text" id="project-description" placeholder="Description">
+      <input type="number" id="project-price" placeholder="Price">
+      <input type="date" id="project-started">
+      <input type="date" id="project-ended">
+  <button onclick="addProject()">Add Project</button>
+
+    </section>
+  </div>
+
+<section id="calendar-section">
+  <h2>Schedule</h2>
+
+  <!-- Event Form -->
+  <div id="event-form" style="max-width: 500px; margin:auto 0 20px;">
+    <input type="text" id="event-title" placeholder="Event Title">
+    <input type="text" id="event-client" placeholder="Client Name (optional)">
+    <input type="date" id="event-date">
+    <input type="time" id="event-time">
+    <button onclick="addEvent()">Add Event</button>
+  </div>
+
+  <div id="calendar" style="max-width:900px;margin:auto;height:600px;"></div>
+</section>
+
+  <!-- TO-DO LIST -->
+<section id="todo-section">
+  <h2>To-Do List</h2>
+
+  <div style="display:flex; gap:10px; margin-bottom:10px;">
+    <input type="text" id="todo-input" placeholder="Add a task...">
+    <button onclick="addTodo()">Add</button>
+  </div>
+      <ul id="todo-list"></ul>
+
+</section>
+<!-- LOGIN SCRIPT -->
+<script>
+const loginOverlay = document.getElementById('login-overlay');
+const app = document.getElementById('app');
+
+// Login function
+async function login(username, password) {
+  try {
+    const res = await fetch('https://beyondflow-production.up.railway.app', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // Hide login overlay and show dashboard
+      loginOverlay.style.display = 'none';
+      app.style.display = 'block';
+
+      // Load dashboard.js dynamically
+      const script = document.createElement('script');
+      script.src = 'dashboard.js';
+      document.body.appendChild(script);
+
+      // Initialize dashboard after script loads
+      script.onload = () => {
+        if (window.init) window.init();
+      };
+
+    } else {
+      alert('Login failed. Check username/password.');
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    alert('Login failed. Check console for details.');
+  }
+}
+
+// Login form submit
+document.getElementById('login-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  login(username, password);
+});
+</script>
+</body>
+</html>
