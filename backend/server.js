@@ -288,10 +288,10 @@ app.delete('/events/:id', (req, res) => {
 });
 
 const path = require('path');
-app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(path.join(__dirname, 'frontend')));
 
 app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend', 'index.html'));
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 // ---------------- START SERVER ----------------
 app.listen(PORT, () => console.log(`BeyondFlow backend running on port ${PORT}`));
