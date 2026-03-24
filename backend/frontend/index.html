@@ -166,7 +166,7 @@ const app = document.getElementById('app');
 // Login function
 async function login(username, password) {
   try {
-    const res = await fetch('https://beyondflow-production.up.railway.app', {
+    const res = await fetch('https://beyondflow-production.up.railway.app/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
