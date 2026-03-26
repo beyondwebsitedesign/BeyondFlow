@@ -211,15 +211,6 @@ app.post('/todos', (req, res) => {
   res.json({ success: true, todo });
 });
 
-app.put('/todos/:id', (req, res) => {
-  const todo = db.todos.find(t => t.id === Number(req.params.id));
-  if (!todo) return res.status(404).json({ success: false });
-
-  todo.completed = req.body.completed;
-  saveDB();
-  res.json({ success: true, todo });
-});
-
 app.put('/todos/reorder', (req, res) => {
   console.log('REORDER ENDPOINT HIT');
   const { order } = req.body;
@@ -251,6 +242,21 @@ app.put('/todos/reorder', (req, res) => {
   console.log('Saved order:', db.todos.map(t => t.id));
 
   res.json({ success: true });
+});
+app.put('/todos/:id', (req, res) => {
+  const todo = db.todos.find(t => t.id === Number(req.params.id));
+  if (!todo) return res.status(404).json({ success: false });
+
+  if (req.body.text !== undefined) {
+    todo.text = req.body.text;
+  }
+
+  if (req.body.completed !== undefined) {
+    todo.completed = req.body.completed;
+  }
+
+  saveDB();
+  res.json({ success: true, todo });
 });
 
 // events database
