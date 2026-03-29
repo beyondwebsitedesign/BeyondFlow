@@ -624,8 +624,13 @@ async function toggleTodo(id, completed) {
 
 // ---------------- DELETE ----------------
 async function deleteTodo(id) {
-  await fetch(`${apiBase}/todos/${id}`, { method: 'DELETE' });
-  fetchTodos();
+  const response = await fetch(`${apiBase}/todos/${id}`, { method: 'DELETE' });
+  const result = await response.json();
+  if (result.success) {
+    await fetchTodos(); // make sure UI updates after delete
+  } else {
+    console.error('Delete failed', result);
+  }
 }
 
 // ---------------- INLINE EDIT ----------------
