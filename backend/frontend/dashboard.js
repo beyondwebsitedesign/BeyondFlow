@@ -624,12 +624,21 @@ async function toggleTodo(id, completed) {
 
 // ---------------- DELETE ----------------
 async function deleteTodo(id) {
-  const response = await fetch(`${apiBase}/todos/${id}`, { method: 'DELETE' });
-  const result = await response.json();
-  if (result.success) {
-    await fetchTodos(); // make sure UI updates after delete
-  } else {
-    console.error('Delete failed', result);
+  try {
+    const res = await fetch(`${apiBase}/todos/${id}`, { method: 'DELETE' });
+
+    if (!res.ok) throw new Error('Failed to delete todo');
+
+    // Remove from UI immediately
+    const li = document.querySelector(`#todo-list li[data-id="${id}"]`);
+    if (li) li.remove();
+
+    // Optional: refresh list from server
+    // await fetchTodos();
+
+  } catch (err) {
+    console.error('Delete todo error:', err);
+    alert('Error deleting todo: ' + err.message);
   }
 }
 
