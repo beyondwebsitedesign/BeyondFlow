@@ -258,16 +258,19 @@ app.put('/todos/:id', (req, res) => {
   saveDB();
   res.json({ success: true, todo });
 });
-app.delete('/todos/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await Todo.deleteOne({ _id: id }); // or your DB call
-    if (result.deletedCount === 0) return res.status(404).json({ success: false, message: 'Todo not found' });
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: err.message });
+// ---------------- DELETE TODO ----------------
+app.delete('/todos/:id', (req, res) => {
+  const id = Number(req.params.id);
+
+  const index = db.todos.findIndex(t => t.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: 'Todo not found' });
   }
+
+  db.todos.splice(index, 1); // remove the todo
+  saveDB(); // save the updated array
+  res.json({ success: true });
 });
 // events database
 db.events = db.events || [];
