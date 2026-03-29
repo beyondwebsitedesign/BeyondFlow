@@ -92,49 +92,6 @@
     }
   ],
   "referrals": [],
-  "todos": [
-    {
-      "id": 1774233767433,
-      "text": "Build reach out list"
-    },
-    {
-      "id": 1774233794380,
-      "text": "Chris Website (Feb-March) (Gunter's Archery)"
-    },
-    {
-      "id": 1774233861465,
-      "text": "Make post about updated website sections (website builder, new social media packages, and updated policies with pop-up"
-    },
-    {
-      "id": 1774233946602,
-      "text": "Devon UI and Security Planning"
-    },
-    {
-      "id": 1774234024415,
-      "text": "Melon Seed Website (Wait for Sam to get phone number set up. hen he calls tell him you set up social media already)",
-      "completed": false
-    },
-    {
-      "id": 1774234071301,
-      "text": "Michelle Website (Finish website; need testimonials, and about page)",
-      "completed": false
-    },
-    {
-      "id": 1774234115273,
-      "text": "* Caleb SEO and social media posts (Monthly 16th) (sent March audit)"
-    },
-    {
-      "id": 1774234166203,
-      "text": "* Brandon SEO and visibility (monthly 6th) (sent Match audit)"
-    },
-    {
-      "id": 1774234215853,
-      "text": "* Josh SEO and social media posts (monthly contract 9th) (sent March audit)"
-    },
-    {
-      "id": 1774234327824,
-      "text": "Lance assessment project (Get stripe login again to test and add power box growth journal to buy on resources page)"
-    }
-  ],
+  "todos": [],
   "events": []
 }
