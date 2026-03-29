@@ -665,7 +665,6 @@ function enableTodoDragAndDrop() {
 
   list.addEventListener('dragover', e => {
     e.preventDefault();
-
     const afterElement = getDragAfterElement(list, e.clientY);
     if (!afterElement) {
       list.appendChild(dragged);
@@ -674,36 +673,32 @@ function enableTodoDragAndDrop() {
     }
   });
 
-list.addEventListener('drop', async e => {
-  e.preventDefault();
-  if (!dragged) return;
+  list.addEventListener('drop', async e => {
+    e.preventDefault();
+    if (!dragged) return;
 
-  const newOrder = Array.from(list.children).map(li => li.dataset.id);
+    // New order as numbers
+    const newOrder = Array.from(list.children).map(li => Number(li.dataset.id));
+    console.log('SENDING ORDER:', newOrder);
 
-  console.log('SENDING ORDER:', newOrder); // ✅ MUST SHOW
-
-  try {
-    const res = await fetch(`${apiBase}/todos/reorder`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ order: newOrder })
-    });
-
-    const data = await res.json();
-    console.log('SERVER RESPONSE:', data);
-
-  } catch (err) {
-    console.error('FETCH ERROR:', err);
-  }
-});
+    try {
+      const res = await fetch(`${apiBase}/todos/reorder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: newOrder })
+      });
+      const data = await res.json();
+      console.log('SERVER RESPONSE:', data);
+    } catch (err) {
+      console.error('FETCH ERROR:', err);
+    }
+  });
 
   function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('li:not([style*="opacity: 0.5"])')];
-
     return draggableElements.reduce((closest, child) => {
       const box = child.getBoundingClientRect();
       const offset = y - box.top - box.height / 2;
-
       if (offset < 0 && offset > closest.offset) {
         return { offset, element: child };
       } else {
