@@ -10,6 +10,7 @@ import mongoose from 'mongoose';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 // ---------------- MONGODB ----------------
 mongoose.connect(process.env.MONGO_URI)
@@ -79,59 +80,98 @@ app.post('/clients', async (req, res) => {
 });
 
 app.put('/clients/:id', async (req, res) => {
-  const client = await Client.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const client = await Client.findByIdAndUpdate(id, req.body, { new: true });
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, client });
 });
 
 app.put('/clients/:id/notes', async (req, res) => {
-  const client = await Client.findByIdAndUpdate(req.params.id, { notes: req.body.notes || '' }, { new: true });
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const client = await Client.findByIdAndUpdate(id, { notes: req.body.notes || '' }, { new: true });
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, notes: client.notes });
 });
 
 app.put('/clients/:id/status', async (req, res) => {
-  const client = await Client.findByIdAndUpdate(req.params.id, { status: req.body.status || 'Lead' }, { new: true });
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const client = await Client.findByIdAndUpdate(id, { status: req.body.status || 'Lead' }, { new: true });
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, status: client.status });
 });
 
 app.delete('/clients/:id', async (req, res) => {
-  const client = await Client.findByIdAndDelete(req.params.id);
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const client = await Client.findByIdAndDelete(id);
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+
   await Referral.deleteMany({ referrer: client.name });
   res.json({ success: true });
 });
 
 // ---------------- PROJECTS ----------------
+app.get('/clients/:id/projects', async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const client = await Client.findById(id);
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
+  res.json({ success: true, projects: client.projects });
+});
 app.post('/clients/:id/projects', async (req, res) => {
-  const client = await Client.findById(req.params.id);
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const client = await Client.findById(id);
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
 
   const project = { id: Date.now(), ...req.body };
   client.projects.push(project);
   await client.save();
+
   res.json({ success: true, project });
 });
 
 app.put('/clients/:clientId/projects/:projectId', async (req, res) => {
-  const client = await Client.findById(req.params.clientId);
+  const { clientId, projectId } = req.params;
+  if (!isValidId(clientId)) return res.status(400).json({ success: false, error: 'Invalid Client ID' });
+
+  const client = await Client.findById(clientId);
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
 
-  const project = client.projects.find(p => p.id === Number(req.params.projectId));
+  const project = client.projects.find(p => p.id === Number(projectId));
   if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
 
   Object.assign(project, req.body);
   await client.save();
+
   res.json({ success: true, project });
 });
 
 app.delete('/clients/:clientId/projects/:projectId', async (req, res) => {
-  const client = await Client.findById(req.params.clientId);
+  const { clientId, projectId } = req.params;
+  if (!isValidId(clientId)) return res.status(400).json({ success: false, error: 'Invalid Client ID' });
+
+  const client = await Client.findById(clientId);
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
 
-  client.projects = client.projects.filter(p => p.id !== Number(req.params.projectId));
+  client.projects = client.projects.filter(p => p.id !== Number(projectId));
   await client.save();
+
   res.json({ success: true });
 });
 
@@ -144,13 +184,20 @@ app.post('/referrals', async (req, res) => {
 });
 
 app.put('/referrals/:id', async (req, res) => {
-  const referral = await Referral.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const referral = await Referral.findByIdAndUpdate(id, req.body, { new: true });
   if (!referral) return res.status(404).json({ success: false, error: 'Referral not found' });
+
   res.json({ success: true, referral });
 });
 
 app.delete('/referrals/:id', async (req, res) => {
-  await Referral.findByIdAndDelete(req.params.id);
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  await Referral.findByIdAndDelete(id);
   res.json({ success: true });
 });
 
@@ -173,9 +220,21 @@ app.post('/todos', async (req, res) => {
 });
 
 app.put('/todos/:id', async (req, res) => {
-  const todo = await Todo.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const todo = await Todo.findByIdAndUpdate(id, req.body, { new: true });
   if (!todo) return res.status(404).json({ success: false });
+
   res.json({ success: true, todo });
+});
+
+app.delete('/todos/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  await Todo.findByIdAndDelete(id);
+  res.json({ success: true });
 });
 
 app.put('/todos/reorder', async (req, res) => {
@@ -183,14 +242,10 @@ app.put('/todos/reorder', async (req, res) => {
   if (!Array.isArray(order)) return res.status(400).json({ success: false });
 
   for (let i = 0; i < order.length; i++) {
+    if (!isValidId(order[i])) continue; // 👈 prevents crash
     await Todo.findByIdAndUpdate(order[i], { order: i });
   }
 
-  res.json({ success: true });
-});
-
-app.delete('/todos/:id', async (req, res) => {
-  await Todo.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });
 
@@ -203,13 +258,20 @@ app.post('/events', async (req, res) => {
 });
 
 app.put('/events/:id', async (req, res) => {
-  const event = await Event.findByIdAndUpdate(req.params.id, req.body, { new: true });
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const event = await Event.findByIdAndUpdate(id, req.body, { new: true });
   if (!event) return res.status(404).json({ success: false, error: 'Event not found' });
+
   res.json({ success: true, event });
 });
 
 app.delete('/events/:id', async (req, res) => {
-  await Event.findByIdAndDelete(req.params.id);
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  await Event.findByIdAndDelete(id);
   res.json({ success: true });
 });
 
