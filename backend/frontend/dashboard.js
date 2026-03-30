@@ -32,11 +32,11 @@ async function fetchClients() {
     clients.forEach(c => {
       const li = document.createElement('li');
       li.innerHTML = `
-        <span onclick="openClient(${c._id})" style="cursor:pointer;">
+        <span onclick="openClient('${c._id}')" style="cursor:pointer;">
           ${c.name} (${c.phone || 'No phone'}, ${c.email || 'No email'})
         </span>
-        <button onclick="editClient(${c._id})">Edit</button>
-        <button onclick="deleteClient(${c._id})">Delete</button>
+        <button onclick="editClient('${c._id}')">Edit</button>
+        <button onclick="deleteClient('${c._id}')">Delete</button>
       `;
       list.appendChild(li);
     });
