@@ -1,25 +1,23 @@
 // ================= SERVER.JS =================
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const mongoose = require('mongoose');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ---------------- MONGODB ----------------
-import mongoose from "mongoose";
-import dotenv from "dotenv";
-
-dotenv.config();
-
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected!"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
 
 // ---------------- USERS ----------------
 let users = [
