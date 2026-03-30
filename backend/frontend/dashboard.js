@@ -240,8 +240,8 @@ async function fetchReferrals() {
     list.innerHTML = referrals.map(r => `
       <li>
         ${r.referrer} → ${r.referred} ($${r.credit})
-        <button onclick="editReferral(${r._id})">Edit</button>
-        <button onclick="deleteReferral(${r._id})">Delete</button>
+        <button onclick="editReferral('${r._id}')">Edit</button>
+        <button onclick="deleteReferral('${r._id}')">Delete</button>
       </li>
     `).join('');
   } catch (err) {
@@ -462,8 +462,8 @@ async function openClient(id) {
   <li>
     <strong>${p.name}</strong> - ${p.description}
     ($${p.price})
-    <button onclick="editProject(${id}, ${p.id})">Edit</button>
-    <button onclick="deleteProject(${id}, ${p.id})">Delete</button>
+    <button onclick="editProject('${id}', '${p.id}')">Edit</button>
+    <button onclick="deleteProject('${id}', '${p.id}')">Delete</button>
   </li>
 `).join('');
 
@@ -585,12 +585,12 @@ async function fetchTodos() {
   list.innerHTML = todos.map(t => `
     <li data-id="${t._id}" draggable="true" style="display:flex; align-items:center; gap:10px;">
       <input type="checkbox" ${t.completed ? 'checked' : ''} 
-        onchange="toggleTodo(${t._id}, this.checked)">
+        onchange="toggleTodo('${t._id}', this.checked)">
       <span contenteditable="true" onblur="editTodoInline(${t._id}, this)" 
         style="${t.completed ? 'text-decoration: line-through;' : ''}">
         ${t.text}
       </span>
-      <button onclick="deleteTodo(${t._id})">❌</button>
+      <button onclick="deleteTodo('${t._id}')">❌</button>
     </li>
   `).join('');
 
