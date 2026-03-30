@@ -83,7 +83,7 @@ app.put('/clients/:id', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const client = await Client.findByIdAndUpdate(id, req.body, { new: true });
+  const client = await Client.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, client });
 });
@@ -92,7 +92,7 @@ app.put('/clients/:id/notes', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const client = await Client.findByIdAndUpdate(id, { notes: req.body.notes || '' }, { new: true });
+  const client = await Client.findByIdAndUpdate(id, { notes: req.body.notes || '' }, { returnDocument: 'after' });
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, notes: client.notes });
 });
@@ -101,7 +101,7 @@ app.put('/clients/:id/status', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const client = await Client.findByIdAndUpdate(id, { status: req.body.status || 'Lead' }, { new: true });
+  const client = await Client.findByIdAndUpdate(id, { status: req.body.status || 'Lead' }, { returnDocument: 'after' });
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, status: client.status });
 });
@@ -187,7 +187,7 @@ app.put('/referrals/:id', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const referral = await Referral.findByIdAndUpdate(id, req.body, { new: true });
+  const referral = await Referral.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
   if (!referral) return res.status(404).json({ success: false, error: 'Referral not found' });
 
   res.json({ success: true, referral });
@@ -223,7 +223,7 @@ app.put('/todos/:id', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const todo = await Todo.findByIdAndUpdate(id, req.body, { new: true });
+  const todo = await Todo.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
   if (!todo) return res.status(404).json({ success: false });
 
   res.json({ success: true, todo });
@@ -261,7 +261,7 @@ app.put('/events/:id', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const event = await Event.findByIdAndUpdate(id, req.body, { new: true });
+  const event = await Event.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
   if (!event) return res.status(404).json({ success: false, error: 'Event not found' });
 
   res.json({ success: true, event });
