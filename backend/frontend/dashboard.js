@@ -782,15 +782,16 @@ function initCalendar() {
       eventObj.remove(); // remove from calendar
 
       // remove from client profile
-      const profileEventsEl = document.getElementById('profile-events');
-      if (profileEventsEl) {
-        const items = Array.from(profileEventsEl.children);
-        items.forEach(li => {
-          if (Number(li.dataset.eventId) === Number(eventObj.id)) {
-            li.remove();
-          }
-        });
-      }
+      // remove from client profile
+const profileEventsEl = document.getElementById('profile-events');
+if (profileEventsEl) {
+  const items = Array.from(profileEventsEl.children);
+  items.forEach(li => {
+    if (li.dataset.eventId === eventObj.id) {
+      li.remove();
+    }
+  });
+}
 
     } catch (err) {
       console.error(err);
