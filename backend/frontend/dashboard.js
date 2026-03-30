@@ -647,11 +647,25 @@ async function editTodoInline(id, spanElement) {
   const newText = spanElement.textContent.trim();
   if (!newText) return;
 
-  await fetch(`${apiBase}/todos/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: newText })
-  });
+  try {
+    const res = await fetch(`${apiBase}/todos/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: newText })
+    });
+
+    const data = await res.json();
+
+    if (!data.success) {
+      console.error('Failed to update todo');
+      return;
+    }
+
+    // Update UI if needed
+    spanElement.textContent = data.todo.text; // ensures UI reflects saved text
+  } catch (err) {
+    console.error('Error updating todo:', err);
+  }
 }
 
 function enableTodoDragAndDrop() {
