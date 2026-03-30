@@ -661,8 +661,16 @@ async function editTodoInline(id, spanElement) {
       return;
     }
 
-    // Update UI if needed
-    spanElement.textContent = data.todo.text; // ensures UI reflects saved text
+    // ✅ Update UI
+    spanElement.textContent = data.todo.text;
+
+    // ✅ Update local todos array if you have one
+    if (window.todos && Array.isArray(window.todos)) {
+      const index = window.todos.findIndex(t => t._id === id);
+      if (index > -1) {
+        window.todos[index].text = data.todo.text;
+      }
+    }
   } catch (err) {
     console.error('Error updating todo:', err);
   }
@@ -700,8 +708,8 @@ function enableTodoDragAndDrop() {
     e.preventDefault();
     if (!dragged) return;
 
-    // New order as numbers
-    const newOrder = Array.from(list.children).map(li => Number(li.dataset.id));
+    // ✅ New order as string IDs (matches Mongo _id)
+    const newOrder = Array.from(list.children).map(li => li.dataset.id);
     console.log('SENDING ORDER:', newOrder);
 
     try {
@@ -712,6 +720,14 @@ function enableTodoDragAndDrop() {
       });
       const data = await res.json();
       console.log('SERVER RESPONSE:', data);
+
+      // ✅ Update local todos array if you have one
+      if (window.todos && Array.isArray(window.todos)) {
+        newOrder.forEach((id, index) => {
+          const todo = window.todos.find(t => t._id === id);
+          if (todo) todo.order = index;
+        });
+      }
     } catch (err) {
       console.error('FETCH ERROR:', err);
     }
