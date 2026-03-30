@@ -32,11 +32,11 @@ async function fetchClients() {
     clients.forEach(c => {
       const li = document.createElement('li');
       li.innerHTML = `
-        <span onclick="openClient(${c.id})" style="cursor:pointer;">
+        <span onclick="openClient(${c._id})" style="cursor:pointer;">
           ${c.name} (${c.phone || 'No phone'}, ${c.email || 'No email'})
         </span>
-        <button onclick="editClient(${c.id})">Edit</button>
-        <button onclick="deleteClient(${c.id})">Delete</button>
+        <button onclick="editClient(${c._id})">Edit</button>
+        <button onclick="deleteClient(${c._id})">Delete</button>
       `;
       list.appendChild(li);
     });
@@ -78,7 +78,7 @@ async function editClient(id) {
   try {
     const res = await fetch(`${apiBase}/clients`);
     const clients = await res.json();
-    const client = clients.find(c => c.id === id);
+    const client = clients.find(c => c._id === id);
     if (!client) return alert('Client not found');
 
     const newName = prompt('Edit name:', client.name);
@@ -157,7 +157,7 @@ async function exportClientsCSV() {
 
     // Create CSV content
     const headers = ['ID', 'Name', 'Phone', 'Email', 'Status', 'Notes'];
-    const rows = clients.map(c => [c.id, c.name, c.phone, c.email, c.status, c.notes]);
+    const rows = clients.map(c => [c._id, c.name, c.phone, c.email, c.status, c.notes]);
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
 
     // Download as file
@@ -240,8 +240,8 @@ async function fetchReferrals() {
     list.innerHTML = referrals.map(r => `
       <li>
         ${r.referrer} → ${r.referred} ($${r.credit})
-        <button onclick="editReferral(${r.id})">Edit</button>
-        <button onclick="deleteReferral(${r.id})">Delete</button>
+        <button onclick="editReferral(${r._id})">Edit</button>
+        <button onclick="deleteReferral(${r._id})">Delete</button>
       </li>
     `).join('');
   } catch (err) {
@@ -284,7 +284,7 @@ async function editReferral(id) {
   try {
     const res = await fetch(`${apiBase}/referrals`);
     const referrals = await res.json();
-    const referral = referrals.find(r => r.id === id);
+    const referral = referrals.find(r => r._id === id);
     if (!referral) return alert('Referral not found');
 
     const newReferrer = prompt('Edit referrer name:', referral.referrer);
@@ -404,7 +404,7 @@ async function editProject(clientId, projectId) {
     // Get latest client data
     const res = await fetch(`${apiBase}/clients`);
     const clients = await res.json();
-    const client = clients.find(c => c.id === clientId);
+    const client = clients.find(c => c._id === clientId);
     const project = client?.projects?.find(p => p.id === projectId);
 
     if (!project) return alert('Project not found');
@@ -448,7 +448,7 @@ async function openClient(id) {
 
   const res = await fetch(`${apiBase}/clients`);
   const clients = await res.json();
-  const client = clients.find(c => c.id === id);
+  const client = clients.find(c => c._id === id);
   if (!client) return;
 
   document.getElementById('profile-name').textContent = client.name;
@@ -583,14 +583,14 @@ async function fetchTodos() {
   const list = document.getElementById('todo-list');
 
   list.innerHTML = todos.map(t => `
-    <li data-id="${t.id}" draggable="true" style="display:flex; align-items:center; gap:10px;">
+    <li data-id="${t._id}" draggable="true" style="display:flex; align-items:center; gap:10px;">
       <input type="checkbox" ${t.completed ? 'checked' : ''} 
-        onchange="toggleTodo(${t.id}, this.checked)">
-      <span contenteditable="true" onblur="editTodoInline(${t.id}, this)" 
+        onchange="toggleTodo(${t._id}, this.checked)">
+      <span contenteditable="true" onblur="editTodoInline(${t._id}, this)" 
         style="${t.completed ? 'text-decoration: line-through;' : ''}">
         ${t.text}
       </span>
-      <button onclick="deleteTodo(${t.id})">❌</button>
+      <button onclick="deleteTodo(${t._id})">❌</button>
     </li>
   `).join('');
 
@@ -817,7 +817,7 @@ async function addEvent() {
 
     // Add to calendar
     calendar.addEvent({
-      id: savedEvent.id, 
+      id: savedEvent._id, 
       title: title,
       start: dateTime,
       allDay: !time,
@@ -831,7 +831,7 @@ async function addEvent() {
     document.getElementById('event-client').value = '';
 
     // If client exists, also update their profile view
-    if (client) await addEventToClientProfile(savedEvent.id, client, title, dateTime);
+    if (client) await addEventToClientProfile(savedEvent._id, client, title, dateTime);
 
   } catch (err) {
     console.error(err);
@@ -869,7 +869,7 @@ async function fetchEvents() {
     calendar.removeAllEvents();
     events.forEach(ev => {
       calendar.addEvent({
-        id: ev.id,
+        id: ev._id,
         title: ev.title,
         start: ev.date,
         allDay: !ev.date.includes('T')
