@@ -213,11 +213,17 @@ app.delete('/events/:id', async (req, res) => {
 });
 
 // ---------------- FRONTEND ----------------
-const path = require('path');
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES module replacements for __filename and __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 app.use(express.static(path.join(__dirname, 'frontend')));
+
 app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
-
 // ---------------- START SERVER ----------------
 app.listen(PORT, () => console.log(`BeyondFlow backend running on port ${PORT}`));
