@@ -647,7 +647,7 @@ async function editTodoInline(id, spanElement) {
   const newText = spanElement.textContent.trim();
   if (!newText) return;
 
-  await fetch(`${apiBase}/todos/${id}`, {
+  await fetch(`${apiBase}/todos/'${id}'`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: newText })
