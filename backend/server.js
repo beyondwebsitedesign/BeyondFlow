@@ -67,7 +67,8 @@ const Todo = model('Todo', TodoSchema);
 
 const EventSchema = new Schema({
   title: String,
-  date: String
+  date: String,
+  client: { type: String, default: '' }
 });
 const Event = model('Event', EventSchema);
 
