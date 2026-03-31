@@ -9,6 +9,7 @@
   <link rel="icon" type="image/jpg" href="images/B.png">
   <link rel="apple-touch-icon" href="images/B.png">
  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     </head>
 <body>
     
@@ -21,6 +22,21 @@
       <button type="submit">Login</button>
     </form>
   </div>
+
+  <!-- Dashboard Header -->
+<div id="dashboard-header" style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
+  <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:150px;" loading="lazy" draggable="false">
+  <h1>BeyondFlow Dashboard</h1>
+  <div id="daily-verse"></div>
+</div>
+
+<nav class="dashboard-quicknav">
+  <a href="#clients-section"><i class="fa-solid fa-user-group"></i><span>Clients</span></a>
+  <a href="#referrals-section"><i class="fa-solid fa-handshake"></i><span>Referrals</span></a>
+  <a href="#calendar-section"><i class="fa-solid fa-calendar-days"></i><span>Schedule</span></a>
+  <a href="#todo-section"><i class="fa-solid fa-list-check"></i><span>To-Do</span></a>
+  <a href="#client-profile"><i class="fa-solid fa-id-card"></i><span>Profile</span></a>
+</nav>
 
   <!-- DASHBOARD APP -->
   <div id="app" style="display:none;">
@@ -39,13 +55,7 @@
       </div>
     </section>
 
-<!-- Dashboard Header -->
-<div id="dashboard-header" style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
-  <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:150px;" loading="lazy" draggable="false">
-  <h1>BeyondFlow Dashboard</h1>
-  <div id="daily-verse"></div>
-</div>
-</div>
+
     <!-- Client Profile -->
     <section id="client-profile" style="display:none;">
         <button onclick="closeProfile()">Close</button>
