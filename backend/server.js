@@ -43,6 +43,7 @@ const ClientSchema = new Schema({
   name: String,
   phone: { type: String, default: '' },
   email: { type: String, default: '' },
+  website: { type: String, default: '' },
   status: { type: String, default: 'Lead' },
   notes: { type: String, default: '' },
   projects: { type: Array, default: [] }
