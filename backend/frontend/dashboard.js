@@ -580,13 +580,16 @@ async function fetchTodos() {
   const res = await fetch(`${apiBase}/todos`);
   const todos = await res.json();
 
+  todos.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  window.todos = todos;
+
   const list = document.getElementById('todo-list');
 
   list.innerHTML = todos.map(t => `
     <li data-id="${t._id}" draggable="true" style="display:flex; align-items:center; gap:10px;">
       <input type="checkbox" ${t.completed ? 'checked' : ''} 
         onchange="toggleTodo('${t._id}', this.checked)">
-      <span contenteditable="true" onblur="editTodoInline(${t._id}, this)" 
+      <span contenteditable="true" onblur="editTodoInline('${t._id}', this)" 
         style="${t.completed ? 'text-decoration: line-through;' : ''}">
         ${t.text}
       </span>
@@ -594,7 +597,7 @@ async function fetchTodos() {
     </li>
   `).join('');
 
-  enableTodoDragAndDrop(); // attach drag-and-drop events to the newly rendered items
+  enableTodoDragAndDrop();
 }
 
 // ---------------- ADD TODO ----------------
@@ -705,33 +708,29 @@ function enableTodoDragAndDrop() {
   });
 
   list.addEventListener('drop', async e => {
-    e.preventDefault();
-    if (!dragged) return;
+  e.preventDefault();
+  if (!dragged) return;
 
-    // ✅ New order as string IDs (matches Mongo _id)
-    const newOrder = Array.from(list.children).map(li => li.dataset.id);
-    console.log('SENDING ORDER:', newOrder);
+  const newOrder = Array.from(list.children)
+    .map(li => li.dataset.id)
+    .filter(id => id);
 
-    try {
-      const res = await fetch(`${apiBase}/todos/reorder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: newOrder })
-      });
-      const data = await res.json();
-      console.log('SERVER RESPONSE:', data);
+  console.log('CLEAN ORDER:', newOrder);
 
-      // ✅ Update local todos array if you have one
-      if (window.todos && Array.isArray(window.todos)) {
-        newOrder.forEach((id, index) => {
-          const todo = window.todos.find(t => t._id === id);
-          if (todo) todo.order = index;
-        });
-      }
-    } catch (err) {
-      console.error('FETCH ERROR:', err);
-    }
-  });
+  try {
+    const res = await fetch(`${apiBase}/todos/reorder`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: newOrder })
+    });
+
+    const data = await res.json();
+    console.log('SERVER RESPONSE:', data);
+
+  } catch (err) {
+    console.error('FETCH ERROR:', err);
+  }
+});
 
   function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('li:not([style*="opacity: 0.5"])')];
