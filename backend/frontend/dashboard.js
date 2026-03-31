@@ -49,15 +49,16 @@ async function fetchClients() {
 
 async function addClient() {
   const name = document.getElementById('client-name').value.trim();
-  const phone = document.getElementById('client-phone').value.trim();
-  const email = document.getElementById('client-email').value.trim();
+const phone = document.getElementById('client-phone').value.trim();
+const email = document.getElementById('client-email').value.trim();
+const website = document.getElementById('client-website').value.trim();
   if (!name) return alert('Enter a name');
 
   try {
     const res = await fetch(`${apiBase}/clients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, email })
+      body: JSON.stringify({ name, phone, email, website })
     });
 
     if (!res.ok) throw new Error('Failed to add client');
@@ -65,6 +66,7 @@ async function addClient() {
     document.getElementById('client-name').value = '';
     document.getElementById('client-phone').value = '';
     document.getElementById('client-email').value = '';
+    document.getElementById('client-website').value = '';
 
     await fetchClients();
     await updateStats();
@@ -84,6 +86,7 @@ async function editClient(id) {
     const newName = prompt('Edit name:', client.name);
     const newPhone = prompt('Edit phone:', client.phone);
     const newEmail = prompt('Edit email:', client.email);
+    const newWebsite = prompt('Edit website:', client.website || '');
 
     if (!newName) return alert('Name is required');
 
@@ -93,7 +96,8 @@ async function editClient(id) {
       body: JSON.stringify({
         name: newName,
         phone: newPhone,
-        email: newEmail
+        email: newEmail,
+          website: newWebsite
       })
     });
 
@@ -156,8 +160,8 @@ async function exportClientsCSV() {
     if (!clients.length) return alert('No clients to export.');
 
     // Create CSV content
-    const headers = ['ID', 'Name', 'Phone', 'Email', 'Status', 'Notes'];
-    const rows = clients.map(c => [c._id, c.name, c.phone, c.email, c.status, c.notes]);
+const headers = ['ID', 'Name', 'Phone', 'Email', 'Website', 'Status', 'Notes'];
+const rows = clients.map(c => [c._id, c.name, c.phone, c.email, c.website || '', c.status, c.notes]);
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
 
     // Download as file
@@ -196,7 +200,8 @@ async function importClientsCSV() {
       phone: cols[headers.indexOf('phone')] || '',
       email: cols[headers.indexOf('email')] || '',
       status: cols[headers.indexOf('status')] || 'Lead',
-      notes: cols[headers.indexOf('notes')] || ''
+      notes: cols[headers.indexOf('notes')] || '',
+      website: cols[headers.indexOf('website')] || '',
     };
     if (!clientData.name) continue;
 
@@ -451,11 +456,26 @@ async function openClient(id) {
   const client = clients.find(c => c._id === id);
   if (!client) return;
 
-  document.getElementById('profile-name').textContent = client.name;
-  document.getElementById('profile-phone').textContent = client.phone || '';
-  document.getElementById('profile-email').textContent = client.email || '';
-  document.getElementById('profile-status').value = client.status || 'Lead';
-  document.getElementById('profile-notes').value = client.notes || '';
+document.getElementById('profile-name').textContent = client.name;
+document.getElementById('profile-phone').textContent = client.phone || '';
+document.getElementById('profile-email').textContent = client.email || '';
+
+const websiteEl = document.getElementById('profile-website');
+const website = client.website || '';
+if (websiteEl) {
+  if (website) {
+    const formattedWebsite = website.startsWith('http') ? website : `https://${website}`;
+    websiteEl.textContent = website;
+    websiteEl.href = formattedWebsite;
+  } else {
+    websiteEl.textContent = '';
+    websiteEl.removeAttribute('href');
+  }
+}
+
+document.getElementById('profile-status').value = client.status || 'Lead';
+document.getElementById('profile-notes').value = client.notes || '';
+
 
   const projectList = document.getElementById('profile-projects');
   projectList.innerHTML = (client.projects || []).map(p => `
@@ -479,8 +499,22 @@ clientEvents.forEach(ev => {
   const refRes = await fetch(`${apiBase}/referrals`);
   const referrals = await refRes.json();
   const clientRefs = referrals.filter(r => r.referrer === client.name);
-  document.getElementById('profile-referrals').innerHTML =
-    clientRefs.map(r => `<li>${r.referred} ($${r.credit})</li>`).join('');
+ document.getElementById('profile-referrals').innerHTML = clientRefs.map(r => {
+  const referredClient = clients.find(c => c.name === r.referred);
+
+  if (referredClient) {
+    return `
+      <li>
+        <span onclick="openClient('${referredClient._id}')" style="cursor:pointer; color:blue; text-decoration:underline;">
+          ${r.referred}
+        </span>
+        ($${r.credit})
+      </li>
+    `;
+  }
+
+  return `<li>${r.referred} ($${r.credit})</li>`;
+}).join('');
 }
 // ---------------- CLOSE CLIENT PROFILE ----------------
 function closeProfile() {
@@ -493,10 +527,16 @@ function closeProfile() {
   document.getElementById('profile-name').textContent = '';
   document.getElementById('profile-phone').textContent = '';
   document.getElementById('profile-email').textContent = '';
+  const websiteEl = document.getElementById('profile-website');
+if (websiteEl) {
+  websiteEl.textContent = '';
+  websiteEl.removeAttribute('href');
+}
   document.getElementById('profile-notes').value = '';
   document.getElementById('profile-status').value = 'Lead';
   document.getElementById('profile-projects').innerHTML = '';
   document.getElementById('profile-referrals').innerHTML = '';
+  
 }
 // ---------------- SAVE CLIENT STATUS ----------------
 async function saveStatus() {
