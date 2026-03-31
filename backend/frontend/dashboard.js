@@ -790,6 +790,10 @@ function initCalendar() {
 
           eventObj.remove();
 
+          if (currentClientId) {
+        loadClientProfile(currentClientId);
+      }
+
           const profileEventsEl = document.getElementById('profile-events');
           if (profileEventsEl) {
             const items = Array.from(profileEventsEl.children);
