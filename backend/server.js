@@ -220,6 +220,18 @@ app.post('/todos', async (req, res) => {
   res.json({ success: true, todo });
 });
 
+app.put('/todos/reorder', async (req, res) => {
+  const { order } = req.body;
+  if (!Array.isArray(order)) return res.status(400).json({ success: false });
+
+  for (let i = 0; i < order.length; i++) {
+    if (!isValidId(order[i])) continue; // 👈 prevents crash
+    await Todo.findByIdAndUpdate(order[i], { order: i });
+  }
+
+  res.json({ success: true });
+});
+
 app.put('/todos/:id', async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
@@ -235,18 +247,6 @@ app.delete('/todos/:id', async (req, res) => {
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
   await Todo.findByIdAndDelete(id);
-  res.json({ success: true });
-});
-
-app.put('/todos/reorder', async (req, res) => {
-  const { order } = req.body;
-  if (!Array.isArray(order)) return res.status(400).json({ success: false });
-
-  for (let i = 0; i < order.length; i++) {
-    if (!isValidId(order[i])) continue; // 👈 prevents crash
-    await Todo.findByIdAndUpdate(order[i], { order: i });
-  }
-
   res.json({ success: true });
 });
 
