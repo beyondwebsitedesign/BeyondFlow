@@ -791,7 +791,7 @@ function initCalendar() {
           eventObj.remove();
 
           if (currentClientId) {
-        loadClientProfile(currentClientId);
+        openClient(currentClientId);
       }
 
           const profileEventsEl = document.getElementById('profile-events');
