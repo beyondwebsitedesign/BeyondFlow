@@ -746,16 +746,21 @@ function enableTodoDragAndDrop() {
     }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
 }
-let calendar; // global
+let calendar;
 
 function initCalendar() {
   const calendarEl = document.getElementById('calendar');
+  if (!calendarEl) return;
+
+  if (calendar) {
+    calendar.destroy();
+  }
 
   calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: 'dayGridMonth',
     editable: true,
     selectable: true,
-    events: [], // will load from your db later
+    events: [],
     headerToolbar: {
       left: 'prev,next today',
       center: 'title',
@@ -763,9 +768,9 @@ function initCalendar() {
     },
     eventClick: async function(info) {
       const eventObj = info.event;
-
       const client = eventObj.extendedProps.client || '';
-  alert(`Event: ${eventObj.title}\nClient: ${client}\nDate: ${eventObj.start.toLocaleString()}`);
+
+      alert(`Event: ${eventObj.title}\nClient: ${client}\nDate: ${eventObj.start.toLocaleString()}`);
 
       const action = prompt(
         `Edit or Delete this event?\nType "edit" to edit, "delete" to delete.`
@@ -774,57 +779,62 @@ function initCalendar() {
       if (!action) return;
 
       if (action.toLowerCase() === 'delete') {
-  if (confirm(`Are you sure you want to delete "${eventObj.title}"?`)) {
-    try {
-      const res = await fetch(`${apiBase}/events/${eventObj.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete event');
+        if (!confirm(`Are you sure you want to delete "${eventObj.title}"?`)) return;
 
-      eventObj.remove(); // remove from calendar
+        try {
+          const res = await fetch(`${apiBase}/events/${eventObj.id}`, {
+            method: 'DELETE'
+          });
 
-      // remove from client profile
-      // remove from client profile
-const profileEventsEl = document.getElementById('profile-events');
-if (profileEventsEl) {
-  const items = Array.from(profileEventsEl.children);
-  items.forEach(li => {
-    if (li.dataset.eventId === eventObj.id) {
-      li.remove();
-    }
-  });
-}
+          if (!res.ok) throw new Error('Failed to delete event');
 
-    } catch (err) {
-      console.error(err);
-      alert('Failed to delete event');
-    }
-  }
+          eventObj.remove();
+
+          const profileEventsEl = document.getElementById('profile-events');
+          if (profileEventsEl) {
+            const items = Array.from(profileEventsEl.children);
+            items.forEach(li => {
+              if (li.dataset.eventId === eventObj.id) {
+                li.remove();
+              }
+            });
+          }
+        } catch (err) {
+          console.error('Delete event error:', err);
+          alert('Failed to delete event');
+        }
       } else if (action.toLowerCase() === 'edit') {
         const newTitle = prompt('Edit event title:', eventObj.title);
-        const newDate = prompt('Edit date/time (YYYY-MM-DDTHH:MM):', eventObj.start.toISOString().slice(0,16));
+        const newDate = prompt(
+          'Edit date/time (YYYY-MM-DDTHH:MM):',
+          eventObj.start.toISOString().slice(0, 16)
+        );
+
         if (!newTitle || !newDate) return alert('Invalid input');
 
         try {
           const res = await fetch(`${apiBase}/events/${eventObj.id}`, {
             method: 'PUT',
-            headers: {'Content-Type':'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: newTitle, date: newDate })
           });
+
           if (!res.ok) throw new Error('Failed to update event');
+
           eventObj.setProp('title', newTitle);
           eventObj.setStart(newDate);
         } catch (err) {
-          console.error(err);
+          console.error('Edit event error:', err);
           alert('Failed to update event');
         }
       }
     }
   });
-  fetchEvents(); // load initial events
+
   calendar.render();
-}  
+  fetchEvents();
+}
 
-
-// Add event
 async function addEvent() {
   const title = document.getElementById('event-title').value.trim();
   const date = document.getElementById('event-date').value;
@@ -835,40 +845,40 @@ async function addEvent() {
 
   const dateTime = time ? `${date}T${time}` : date;
 
-  // Save to backend
   try {
     const res = await fetch(`${apiBase}/events`, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, date: dateTime, client })
     });
+
     if (!res.ok) throw new Error('Failed to save event');
 
-    const savedEvent = await res.json(); // should return the saved event including ID
+    const data = await res.json();
+    const savedEvent = data.event;
 
-    // Add to calendar
     calendar.addEvent({
-      id: savedEvent._id, 
-      title: title,
-      start: dateTime,
+      id: savedEvent._id,
+      title: savedEvent.title,
+      start: savedEvent.date,
       allDay: !time,
-      extendedProps: { client } // store client name
+      extendedProps: { client: savedEvent.client || client || '' }
     });
 
-    // Clear form
     document.getElementById('event-title').value = '';
     document.getElementById('event-date').value = '';
     document.getElementById('event-time').value = '';
     document.getElementById('event-client').value = '';
 
-    // If client exists, also update their profile view
-    if (client) await addEventToClientProfile(savedEvent._id, client, title, dateTime);
-
+    if (client) {
+      await addEventToClientProfile(savedEvent._id, client, title, dateTime);
+    }
   } catch (err) {
-    console.error(err);
+    console.error('Add event error:', err);
     alert('Error adding event: ' + err.message);
   }
 }
+
 async function addEventToClientProfile(eventId, clientName, title, dateTime) {
   // Find the client
   const res = await fetch(`${apiBase}/clients`);
@@ -898,15 +908,17 @@ async function fetchEvents() {
     const events = await res.json();
 
     calendar.removeAllEvents();
+
     events.forEach(ev => {
       calendar.addEvent({
         id: ev._id,
         title: ev.title,
         start: ev.date,
-        allDay: !ev.date.includes('T')
+        allDay: !ev.date.includes('T'),
+        extendedProps: { client: ev.client || '' }
       });
     });
-  } catch(err) {
+  } catch (err) {
     console.error('Fetch events error:', err);
   }
 }
