@@ -307,9 +307,6 @@ app.delete('/events/:id', async (req, res) => {
 });
 
 // ---------------- INVOICES ----------------
-let currentInvoiceId = null;
-let invoiceClients = [];
-
 app.get('/invoices', async (req, res) => {
   const invoices = await Invoice.find().sort({ createdAt: -1 });
   res.json(invoices);
