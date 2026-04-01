@@ -73,6 +73,35 @@ const EventSchema = new Schema({
 });
 const Event = model('Event', EventSchema);
 
+const InvoiceSchema = new Schema({
+  invoiceNumber: String,
+  issueDate: String,
+  dueDate: String,
+  clientId: { type: String, default: '' },
+  clientName: { type: String, default: '' },
+  clientEmail: { type: String, default: '' },
+  clientPhone: { type: String, default: '' },
+  clientWebsite: { type: String, default: '' },
+  status: { type: String, default: 'Draft' },
+  notes: { type: String, default: '' },
+  items: {
+    type: [
+      {
+        description: String,
+        quantity: Number,
+        rate: Number,
+        amount: Number
+      }
+    ],
+    default: []
+  },
+  subtotal: { type: Number, default: 0 },
+  total: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Invoice = model('Invoice', InvoiceSchema);
+
 // ---------------- CLIENTS ----------------
 app.get('/clients', async (req, res) => res.json(await Client.find()));
 
@@ -275,6 +304,30 @@ app.delete('/events/:id', async (req, res) => {
 
   await Event.findByIdAndDelete(id);
   res.json({ success: true });
+});
+
+// ---------------- INVOICES ----------------
+let currentInvoiceId = null;
+let invoiceClients = [];
+
+app.get('/invoices', async (req, res) => {
+  const invoices = await Invoice.find().sort({ createdAt: -1 });
+  res.json(invoices);
+});
+
+app.post('/invoices', async (req, res) => {
+  const invoice = await Invoice.create(req.body);
+  res.json({ success: true, invoice });
+});
+
+app.put('/invoices/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+
+  const invoice = await Invoice.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
+  if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+
+  res.json({ success: true, invoice });
 });
 
 // ---------------- FRONTEND ----------------
