@@ -984,6 +984,218 @@ window.initCalendar = initCalendar;
 window.addEvent = addEvent;
 window.fetchEvents = fetchEvents;
 window.deleteEvent = deleteEvent;
+
+async function fetchClientsForInvoice() {
+  try {
+    const res = await fetch(`${apiBase}/clients`);
+    const clients = await res.json();
+    invoiceClients = clients;
+
+    const select = document.getElementById('invoice-client');
+    if (!select) return;
+
+    select.innerHTML = `<option value="">Select Client</option>` + clients.map(c => `
+      <option value="${c._id}">${c.name}</option>
+    `).join('');
+  } catch (err) {
+    console.error('Fetch invoice clients error:', err);
+  }
+}
+
+function autofillInvoiceClient() {
+  const clientId = document.getElementById('invoice-client').value;
+  const client = invoiceClients.find(c => c._id === clientId);
+  if (!client) return;
+
+  document.getElementById('invoice-client-name').value = client.name || '';
+  document.getElementById('invoice-client-email').value = client.email || '';
+  document.getElementById('invoice-client-phone').value = client.phone || '';
+  document.getElementById('invoice-client-website').value = client.website || '';
+}
+
+function addInvoiceItem(description = '', quantity = 1, rate = 0) {
+  const container = document.getElementById('invoice-items');
+  if (!container) return;
+
+  const row = document.createElement('div');
+  row.className = 'invoice-item-row';
+  row.innerHTML = `
+    <input type="text" class="invoice-item-description" placeholder="Service / Item" value="${description}">
+    <input type="number" class="invoice-item-qty" placeholder="Qty" value="${quantity}" min="1" step="1">
+    <input type="number" class="invoice-item-rate" placeholder="Rate" value="${rate}" min="0" step="0.01">
+    <span class="invoice-item-amount">$0.00</span>
+    <button type="button" onclick="removeInvoiceItem(this)">Remove</button>
+  `;
+
+  container.appendChild(row);
+
+  row.querySelectorAll('input').forEach(input => {
+    input.addEventListener('input', recalculateInvoiceTotal);
+  });
+
+  recalculateInvoiceTotal();
+}
+
+function removeInvoiceItem(button) {
+  button.parentElement.remove();
+  recalculateInvoiceTotal();
+}
+
+function recalculateInvoiceTotal() {
+  const rows = document.querySelectorAll('.invoice-item-row');
+  let subtotal = 0;
+
+  rows.forEach(row => {
+    const qty = Number(row.querySelector('.invoice-item-qty').value) || 0;
+    const rate = Number(row.querySelector('.invoice-item-rate').value) || 0;
+    const amount = qty * rate;
+
+    row.querySelector('.invoice-item-amount').textContent = `$${amount.toFixed(2)}`;
+    subtotal += amount;
+  });
+
+  document.getElementById('invoice-subtotal').textContent = subtotal.toFixed(2);
+  document.getElementById('invoice-total').textContent = subtotal.toFixed(2);
+}
+
+function collectInvoiceData() {
+  const rows = document.querySelectorAll('.invoice-item-row');
+
+  const items = Array.from(rows).map(row => {
+    const description = row.querySelector('.invoice-item-description').value.trim();
+    const quantity = Number(row.querySelector('.invoice-item-qty').value) || 0;
+    const rate = Number(row.querySelector('.invoice-item-rate').value) || 0;
+    const amount = quantity * rate;
+
+    return { description, quantity, rate, amount };
+  }).filter(item => item.description);
+
+  const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+
+  return {
+    invoiceNumber: document.getElementById('invoice-number').value.trim(),
+    issueDate: document.getElementById('invoice-date').value,
+    dueDate: document.getElementById('invoice-due-date').value,
+    clientId: document.getElementById('invoice-client').value || '',
+    clientName: document.getElementById('invoice-client-name').value.trim(),
+    clientEmail: document.getElementById('invoice-client-email').value.trim(),
+    clientPhone: document.getElementById('invoice-client-phone').value.trim(),
+    clientWebsite: document.getElementById('invoice-client-website').value.trim(),
+    status: document.getElementById('invoice-status').value,
+    notes: document.getElementById('invoice-notes').value.trim(),
+    items,
+    subtotal,
+    total: subtotal
+  };
+}
+
+async function saveInvoice() {
+  try {
+    const payload = collectInvoiceData();
+
+    const url = currentInvoiceId
+      ? `${apiBase}/invoices/${currentInvoiceId}`
+      : `${apiBase}/invoices`;
+
+    const method = currentInvoiceId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save invoice');
+
+    currentInvoiceId = data.invoice._id;
+    alert('Invoice saved successfully');
+  } catch (err) {
+    console.error('Save invoice error:', err);
+    alert('Error saving invoice: ' + err.message);
+  }
+}
+
+function buildInvoiceHTML() {
+  const data = collectInvoiceData();
+
+  return `
+    <div style="font-family: Arial, sans-serif; color: #111; padding: 30px;">
+      <h1 style="margin-bottom: 8px;">Invoice</h1>
+      <p><strong>Invoice #:</strong> ${data.invoiceNumber || '-'}</p>
+      <p><strong>Issue Date:</strong> ${data.issueDate || '-'}</p>
+      <p><strong>Due Date:</strong> ${data.dueDate || '-'}</p>
+      <p><strong>Status:</strong> ${data.status}</p>
+
+      <hr>
+
+      <h3>Bill To</h3>
+      <p>${data.clientName || '-'}</p>
+      <p>${data.clientEmail || ''}</p>
+      <p>${data.clientPhone || ''}</p>
+      <p>${data.clientWebsite || ''}</p>
+
+      <hr>
+
+      <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
+        <thead>
+          <tr>
+            <th style="text-align:left; border-bottom:1px solid #ccc; padding:8px;">Description</th>
+            <th style="text-align:left; border-bottom:1px solid #ccc; padding:8px;">Qty</th>
+            <th style="text-align:left; border-bottom:1px solid #ccc; padding:8px;">Rate</th>
+            <th style="text-align:left; border-bottom:1px solid #ccc; padding:8px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.items.map(item => `
+            <tr>
+              <td style="padding:8px; border-bottom:1px solid #eee;">${item.description}</td>
+              <td style="padding:8px; border-bottom:1px solid #eee;">${item.quantity}</td>
+              <td style="padding:8px; border-bottom:1px solid #eee;">$${item.rate.toFixed(2)}</td>
+              <td style="padding:8px; border-bottom:1px solid #eee;">$${item.amount.toFixed(2)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <h2 style="margin-top: 20px;">Total: $${data.total.toFixed(2)}</h2>
+
+      ${data.notes ? `<p><strong>Notes:</strong> ${data.notes}</p>` : ''}
+    </div>
+  `;
+}
+
+function downloadInvoicePDF() {
+  const printArea = document.getElementById('invoice-print');
+  printArea.innerHTML = buildInvoiceHTML();
+  printArea.style.display = 'block';
+
+  html2pdf().set({
+    margin: 0.5,
+    filename: `${document.getElementById('invoice-number').value || 'invoice'}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+  }).from(printArea).save().then(() => {
+    printArea.style.display = 'none';
+  });
+}
+
+function printInvoice() {
+  const printArea = document.getElementById('invoice-print');
+  printArea.innerHTML = buildInvoiceHTML();
+
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write(`
+    <html>
+      <head><title>Print Invoice</title></head>
+      <body>${printArea.innerHTML}</body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+}
+
 // ---------------- INIT ----------------
 function init() {
   // Only attach event listeners for dynamically generated elements
@@ -998,6 +1210,16 @@ function init() {
   fetchEvents();
   updateStats();
   initCalendar();
+  fetchClientsForInvoice();
+
+if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
+  addInvoiceItem();
+}
+
+const invoiceDate = document.getElementById('invoice-date');
+if (invoiceDate && !invoiceDate.value) {
+  invoiceDate.value = new Date().toISOString().split('T')[0];
+}
 }
 
 // Run init on page load
@@ -1019,4 +1241,11 @@ window.toggleTodo = toggleTodo;
 window.deleteTodo = deleteTodo;
 window.editTodoInline = editTodoInline;
 window.enableTodoDragAndDrop = enableTodoDragAndDrop;
-
+window.fetchClientsForInvoice = fetchClientsForInvoice;
+window.autofillInvoiceClient = autofillInvoiceClient;
+window.addInvoiceItem = addInvoiceItem;
+window.removeInvoiceItem = removeInvoiceItem;
+window.recalculateInvoiceTotal = recalculateInvoiceTotal;
+window.saveInvoice = saveInvoice;
+window.downloadInvoicePDF = downloadInvoicePDF;
+window.printInvoice = printInvoice;
