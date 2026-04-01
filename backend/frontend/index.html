@@ -8,9 +8,10 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/jpg" href="images/B.png">
   <link rel="apple-touch-icon" href="images/B.png">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
  <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.20/index.global.min.js'></script>
- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    </head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>    
+</head>
 <body>
     
   <!-- LOGIN OVERLAY -->
@@ -35,6 +36,7 @@
   <a href="#referrals-section"><i class="fa-solid fa-handshake"></i><span>Referrals</span></a>
   <a href="#calendar-section"><i class="fa-solid fa-calendar-days"></i><span>Schedule</span></a>
   <a href="#todo-section"><i class="fa-solid fa-list-check"></i><span>To-Do</span></a>
+  <a href="#invoice-section"><i class="fa-solid fa-file-invoice-dollar"></i><span>Invoices</span></a>
 </nav>
 
   <!-- DASHBOARD APP -->
@@ -158,6 +160,51 @@
   </div>
       <ul id="todo-list"></ul>
 
+</section>
+
+<section id="invoice-section">
+  <h2>Invoice Creator</h2>
+
+  <div class="invoice-form">
+    <input type="text" id="invoice-number" placeholder="Invoice Number">
+    <input type="date" id="invoice-date">
+    <input type="date" id="invoice-due-date">
+
+    <select id="invoice-client" onchange="autofillInvoiceClient()">
+      <option value="">Select Client</option>
+    </select>
+
+    <input type="text" id="invoice-client-name" placeholder="Client Name">
+    <input type="email" id="invoice-client-email" placeholder="Client Email">
+    <input type="text" id="invoice-client-phone" placeholder="Client Phone">
+    <input type="text" id="invoice-client-website" placeholder="Client Website">
+
+    <select id="invoice-status">
+      <option value="Draft">Draft</option>
+      <option value="Sent">Sent</option>
+      <option value="Paid">Paid</option>
+      <option value="Overdue">Overdue</option>
+    </select>
+
+    <textarea id="invoice-notes" placeholder="Notes / Terms"></textarea>
+  </div>
+
+  <h3>Line Items</h3>
+  <div id="invoice-items"></div>
+  <button onclick="addInvoiceItem()">Add Line Item</button>
+
+  <div class="invoice-totals">
+    <p>Subtotal: $<span id="invoice-subtotal">0.00</span></p>
+    <p>Total: $<span id="invoice-total">0.00</span></p>
+  </div>
+
+  <div class="invoice-actions">
+    <button onclick="saveInvoice()">Save Invoice</button>
+    <button onclick="downloadInvoicePDF()">Download PDF</button>
+    <button onclick="printInvoice()">Print Invoice</button>
+  </div>
+
+  <div id="invoice-print" style="display:none;"></div>
 </section>
 <!-- LOGIN SCRIPT -->
 <script>
