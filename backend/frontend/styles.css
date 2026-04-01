@@ -390,7 +390,39 @@ label {
   color: var(--muted);
   font-size: 0.95rem;
 }
+.invoice-status {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
 
+.invoice-status-draft {
+  background: rgba(160, 160, 160, 0.15);
+  color: #bdbdbd;
+  border: 1px solid rgba(160, 160, 160, 0.3);
+}
+
+.invoice-status-sent {
+  background: rgba(255, 215, 0, 0.12);
+  color: #f5d76e;
+  border: 1px solid rgba(255, 215, 0, 0.28);
+}
+
+.invoice-status-paid {
+  background: rgba(46, 204, 113, 0.14);
+  color: #7ef0a7;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.invoice-status-overdue {
+  background: rgba(231, 76, 60, 0.14);
+  color: #ff8f84;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
 /* Responsive */
 @media (max-width: 900px) {
   #stats {
