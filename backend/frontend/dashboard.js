@@ -528,7 +528,10 @@ const clientInvoices = invoices.filter(inv => inv.clientId === client._id);
 document.getElementById('profile-invoices').innerHTML = clientInvoices.map(inv => `
   <li>
     <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer; color:gold; text-decoration:underline;">
-      ${inv.invoiceNumber || 'No Number'} - $${(inv.total || 0).toFixed(2)} - ${inv.status || 'Draft'}
+      ${inv.invoiceNumber || 'No Number'} - $${(inv.total || 0).toFixed(2)}
+    </span>
+    <span class="invoice-status invoice-status-${(inv.status || 'Draft').toLowerCase()}">
+      ${inv.status || 'Draft'}
     </span>
   </li>
 `).join('');
@@ -1002,6 +1005,30 @@ window.addEvent = addEvent;
 window.fetchEvents = fetchEvents;
 window.deleteEvent = deleteEvent;
 
+async function fetchInvoices() {
+  try {
+    const res = await fetch(`${apiBase}/invoices`);
+    const invoices = await res.json();
+
+    const history = document.getElementById('invoice-history');
+    if (!history) return;
+
+    history.innerHTML = invoices.map(inv => `
+  <li>
+    <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer;">
+      ${inv.invoiceNumber || 'No Number'} - ${inv.clientName || 'No Client'} - $${(inv.total || 0).toFixed(2)}
+    </span>
+    <span class="invoice-status invoice-status-${(inv.status || 'Draft').toLowerCase()}">
+      ${inv.status || 'Draft'}
+    </span>
+  </li>
+`).join('');
+  } catch (err) {
+    console.error('Fetch invoices error:', err);
+  }
+}
+
+
 async function fetchClientsForInvoice() {
   try {
     const res = await fetch(`${apiBase}/clients`);
@@ -1018,7 +1045,46 @@ async function fetchClientsForInvoice() {
     console.error('Fetch invoice clients error:', err);
   }
 }
+async function loadInvoice(id) {
+  try {
+    const res = await fetch(`${apiBase}/invoices`);
+    const invoices = await res.json();
+    const invoice = invoices.find(inv => inv._id === id);
+    if (!invoice) return alert('Invoice not found');
 
+    currentInvoiceId = invoice._id;
+    if (invoice.clientId) {
+  currentClientId = invoice.clientId;
+}
+
+    document.getElementById('invoice-number').value = invoice.invoiceNumber || '';
+    document.getElementById('invoice-date').value = invoice.issueDate || '';
+    document.getElementById('invoice-due-date').value = invoice.dueDate || '';
+    document.getElementById('invoice-client').value = invoice.clientId || '';
+    document.getElementById('invoice-client-name').value = invoice.clientName || '';
+    document.getElementById('invoice-client-email').value = invoice.clientEmail || '';
+    document.getElementById('invoice-client-phone').value = invoice.clientPhone || '';
+    document.getElementById('invoice-client-website').value = invoice.clientWebsite || '';
+    document.getElementById('invoice-status').value = invoice.status || 'Draft';
+    document.getElementById('invoice-notes').value = invoice.notes || '';
+
+    const itemsContainer = document.getElementById('invoice-items');
+    itemsContainer.innerHTML = '';
+
+    (invoice.items || []).forEach(item => {
+      addInvoiceItem(item.description, item.quantity, item.rate);
+    });
+
+    if (!invoice.items || !invoice.items.length) {
+      addInvoiceItem();
+    }
+
+    recalculateInvoiceTotal();
+  } catch (err) {
+    console.error('Load invoice error:', err);
+    alert('Error loading invoice');
+  }
+}
 function autofillInvoiceClient() {
   const clientId = document.getElementById('invoice-client').value;
   const client = invoiceClients.find(c => c._id === clientId);
@@ -1220,66 +1286,48 @@ function printInvoice() {
   printWindow.print();
 }
 
-async function fetchInvoices() {
+async function deleteInvoice() {
+  if (!currentInvoiceId) return alert('No invoice selected');
+  if (!confirm('Are you sure you want to delete this invoice?')) return;
+
   try {
-    const res = await fetch(`${apiBase}/invoices`);
-    const invoices = await res.json();
-
-    const history = document.getElementById('invoice-history');
-    if (!history) return;
-
-    history.innerHTML = invoices.map(inv => `
-      <li>
-        <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer;">
-          ${inv.invoiceNumber || 'No Number'} - ${inv.clientName || 'No Client'} - $${(inv.total || 0).toFixed(2)}
-        </span>
-      </li>
-    `).join('');
-  } catch (err) {
-    console.error('Fetch invoices error:', err);
-  }
-}
-async function loadInvoice(id) {
-  try {
-    const res = await fetch(`${apiBase}/invoices`);
-    const invoices = await res.json();
-    const invoice = invoices.find(inv => inv._id === id);
-    if (!invoice) return alert('Invoice not found');
-
-    currentInvoiceId = invoice._id;
-    if (invoice.clientId) {
-  currentClientId = invoice.clientId;
-}
-
-    document.getElementById('invoice-number').value = invoice.invoiceNumber || '';
-    document.getElementById('invoice-date').value = invoice.issueDate || '';
-    document.getElementById('invoice-due-date').value = invoice.dueDate || '';
-    document.getElementById('invoice-client').value = invoice.clientId || '';
-    document.getElementById('invoice-client-name').value = invoice.clientName || '';
-    document.getElementById('invoice-client-email').value = invoice.clientEmail || '';
-    document.getElementById('invoice-client-phone').value = invoice.clientPhone || '';
-    document.getElementById('invoice-client-website').value = invoice.clientWebsite || '';
-    document.getElementById('invoice-status').value = invoice.status || 'Draft';
-    document.getElementById('invoice-notes').value = invoice.notes || '';
-
-    const itemsContainer = document.getElementById('invoice-items');
-    itemsContainer.innerHTML = '';
-
-    (invoice.items || []).forEach(item => {
-      addInvoiceItem(item.description, item.quantity, item.rate);
+    const res = await fetch(`${apiBase}/invoices/${currentInvoiceId}`, {
+      method: 'DELETE'
     });
 
-    if (!invoice.items || !invoice.items.length) {
-      addInvoiceItem();
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to delete invoice');
     }
 
+    currentInvoiceId = null;
+
+    document.getElementById('invoice-number').value = '';
+    document.getElementById('invoice-date').value = '';
+    document.getElementById('invoice-due-date').value = '';
+    document.getElementById('invoice-client').value = '';
+    document.getElementById('invoice-client-name').value = '';
+    document.getElementById('invoice-client-email').value = '';
+    document.getElementById('invoice-client-phone').value = '';
+    document.getElementById('invoice-client-website').value = '';
+    document.getElementById('invoice-status').value = 'Draft';
+    document.getElementById('invoice-notes').value = '';
+    document.getElementById('invoice-items').innerHTML = '';
+    addInvoiceItem();
     recalculateInvoiceTotal();
+
+    await fetchInvoices();
+
+    if (currentClientId) {
+      await openClient(currentClientId);
+    }
+
+    alert('Invoice deleted successfully');
   } catch (err) {
-    console.error('Load invoice error:', err);
-    alert('Error loading invoice');
+    console.error('Delete invoice error:', err);
+    alert('Error deleting invoice: ' + err.message);
   }
 }
-
 // ---------------- INIT ----------------
 function init() {
   // Only attach event listeners for dynamically generated elements
@@ -1336,3 +1384,4 @@ window.downloadInvoicePDF = downloadInvoicePDF;
 window.printInvoice = printInvoice;
 window.fetchInvoices = fetchInvoices;
 window.loadInvoice = loadInvoice;
+window.deleteInvoice = deleteInvoice;
