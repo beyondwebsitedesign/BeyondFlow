@@ -3,6 +3,9 @@ const apiBase = 'https://beyondflow-production.up.railway.app';
 
 // ---------------- STATE ----------------
 let currentClientId = (localStorage.getItem('currentClientId')) || null;
+let currentInvoiceId = null;
+let invoiceClients = [];
+
 
 // ---------------- CLIENTS ----------------
 async function fetchClients() {
