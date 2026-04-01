@@ -326,7 +326,15 @@ app.put('/invoices/:id', async (req, res) => {
 
   res.json({ success: true, invoice });
 });
+app.delete('/invoices/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
+  const invoice = await Invoice.findByIdAndDelete(id);
+  if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+
+  res.json({ success: true });
+});
 // ---------------- FRONTEND ----------------
 import path from 'path';
 import { fileURLToPath } from 'url';
