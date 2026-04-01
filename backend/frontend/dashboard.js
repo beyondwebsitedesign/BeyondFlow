@@ -503,8 +503,9 @@ clientEvents.forEach(ev => {
   const referrals = await refRes.json();
   const clientRefs = referrals.filter(r => r.referrer === client.name);
  document.getElementById('profile-referrals').innerHTML = clientRefs.map(r => {
-  const referredClient = clients.find(c => c.name === r.referred);
-
+const referredClient = clients.find(
+  c => c.name.trim().toLowerCase() === r.referred.trim().toLowerCase()
+);
   if (referredClient) {
     return `
       <li>
@@ -518,6 +519,19 @@ clientEvents.forEach(ev => {
 
   return `<li>${r.referred} ($${r.credit})</li>`;
 }).join('');
+
+const invoiceRes = await fetch(`${apiBase}/invoices`);
+const invoices = await invoiceRes.json();
+
+const clientInvoices = invoices.filter(inv => inv.clientId === client._id);
+
+document.getElementById('profile-invoices').innerHTML = clientInvoices.map(inv => `
+  <li>
+    <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer; color:gold; text-decoration:underline;">
+      ${inv.invoiceNumber || 'No Number'} - $${(inv.total || 0).toFixed(2)} - ${inv.status || 'Draft'}
+    </span>
+  </li>
+`).join('');
 }
 // ---------------- CLOSE CLIENT PROFILE ----------------
 function closeProfile() {
@@ -539,7 +553,7 @@ if (websiteEl) {
   document.getElementById('profile-status').value = 'Lead';
   document.getElementById('profile-projects').innerHTML = '';
   document.getElementById('profile-referrals').innerHTML = '';
-  
+  document.getElementById('profile-invoices').innerHTML = '';
 }
 // ---------------- SAVE CLIENT STATUS ----------------
 async function saveStatus() {
@@ -1111,12 +1125,19 @@ async function saveInvoice() {
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save invoice');
 
-    currentInvoiceId = data.invoice._id;
-    alert('Invoice saved successfully');
-  } catch (err) {
+currentInvoiceId = data.invoice._id;
+await fetchInvoices();
+
+if (currentClientId) {
+  await openClient(currentClientId);
+}
+
+alert('Invoice saved successfully');
+} catch (err) {
     console.error('Save invoice error:', err);
     alert('Error saving invoice: ' + err.message);
   }
+  
 }
 
 function buildInvoiceHTML() {
@@ -1199,6 +1220,66 @@ function printInvoice() {
   printWindow.print();
 }
 
+async function fetchInvoices() {
+  try {
+    const res = await fetch(`${apiBase}/invoices`);
+    const invoices = await res.json();
+
+    const history = document.getElementById('invoice-history');
+    if (!history) return;
+
+    history.innerHTML = invoices.map(inv => `
+      <li>
+        <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer;">
+          ${inv.invoiceNumber || 'No Number'} - ${inv.clientName || 'No Client'} - $${(inv.total || 0).toFixed(2)}
+        </span>
+      </li>
+    `).join('');
+  } catch (err) {
+    console.error('Fetch invoices error:', err);
+  }
+}
+async function loadInvoice(id) {
+  try {
+    const res = await fetch(`${apiBase}/invoices`);
+    const invoices = await res.json();
+    const invoice = invoices.find(inv => inv._id === id);
+    if (!invoice) return alert('Invoice not found');
+
+    currentInvoiceId = invoice._id;
+    if (invoice.clientId) {
+  currentClientId = invoice.clientId;
+}
+
+    document.getElementById('invoice-number').value = invoice.invoiceNumber || '';
+    document.getElementById('invoice-date').value = invoice.issueDate || '';
+    document.getElementById('invoice-due-date').value = invoice.dueDate || '';
+    document.getElementById('invoice-client').value = invoice.clientId || '';
+    document.getElementById('invoice-client-name').value = invoice.clientName || '';
+    document.getElementById('invoice-client-email').value = invoice.clientEmail || '';
+    document.getElementById('invoice-client-phone').value = invoice.clientPhone || '';
+    document.getElementById('invoice-client-website').value = invoice.clientWebsite || '';
+    document.getElementById('invoice-status').value = invoice.status || 'Draft';
+    document.getElementById('invoice-notes').value = invoice.notes || '';
+
+    const itemsContainer = document.getElementById('invoice-items');
+    itemsContainer.innerHTML = '';
+
+    (invoice.items || []).forEach(item => {
+      addInvoiceItem(item.description, item.quantity, item.rate);
+    });
+
+    if (!invoice.items || !invoice.items.length) {
+      addInvoiceItem();
+    }
+
+    recalculateInvoiceTotal();
+  } catch (err) {
+    console.error('Load invoice error:', err);
+    alert('Error loading invoice');
+  }
+}
+
 // ---------------- INIT ----------------
 function init() {
   // Only attach event listeners for dynamically generated elements
@@ -1214,6 +1295,7 @@ function init() {
   updateStats();
   initCalendar();
   fetchClientsForInvoice();
+  fetchInvoices();
 
 if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
   addInvoiceItem();
@@ -1252,3 +1334,5 @@ window.recalculateInvoiceTotal = recalculateInvoiceTotal;
 window.saveInvoice = saveInvoice;
 window.downloadInvoicePDF = downloadInvoicePDF;
 window.printInvoice = printInvoice;
+window.fetchInvoices = fetchInvoices;
+window.loadInvoice = loadInvoice;
