@@ -91,6 +91,9 @@
       <input type="date" id="project-ended">
   <button onclick="addProject()">Add Project</button>
 
+  <h3>Invoices</h3>
+<ul id="profile-invoices"></ul>
+
     </section>
     
     <!-- Clients Section -->
@@ -161,9 +164,10 @@
       <ul id="todo-list"></ul>
 
 </section>
+<hr style="border:1px solid rgba(255,215,0,0.1); margin:20px 0;">
 
 <section id="invoice-section">
-  <h2>Invoice Creator</h2>
+  <h2>Invoices</h2>
 
   <div class="invoice-form">
     <input type="text" id="invoice-number" placeholder="Invoice Number">
@@ -202,7 +206,11 @@
     <button onclick="saveInvoice()">Save Invoice</button>
     <button onclick="downloadInvoicePDF()">Download PDF</button>
     <button onclick="printInvoice()">Print Invoice</button>
+    <button onclick="newInvoice()">New Invoice</button>
   </div>
+
+  <h3>Saved Invoices</h3>
+<ul id="invoice-history"></ul>
 
   <div id="invoice-print" style="display:none;"></div>
 </section>
@@ -252,6 +260,27 @@ document.getElementById('login-form').addEventListener('submit', e => {
   const password = document.getElementById('password').value;
   login(username, password);
 });
+</script>
+<script>
+  function newInvoice() {
+  currentInvoiceId = null;
+
+  document.getElementById('invoice-number').value = '';
+  document.getElementById('invoice-date').value = '';
+  document.getElementById('invoice-due-date').value = '';
+  document.getElementById('invoice-client').value = '';
+  document.getElementById('invoice-client-name').value = '';
+  document.getElementById('invoice-client-email').value = '';
+  document.getElementById('invoice-client-phone').value = '';
+  document.getElementById('invoice-client-website').value = '';
+  document.getElementById('invoice-status').value = 'Draft';
+  document.getElementById('invoice-notes').value = '';
+
+  document.getElementById('invoice-items').innerHTML = '';
+  addInvoiceItem();
+
+  recalculateInvoiceTotal();
+}
 </script>
 </body>
 </html>
