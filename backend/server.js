@@ -31,6 +31,12 @@ app.post('/login', async (req, res) => {
     if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+     if (!user.isActive) {
+  return res.status(403).json({
+    success: false,
+    message: 'Your account is pending activation. Once payment is received, your access will be turned on.'
+  });
+}
 
     const passwordMatches = bcrypt.compareSync(password, user.password);
     if (!passwordMatches) {
@@ -86,22 +92,11 @@ app.post('/signup', async (req, res) => {
       password: hashedPassword
     });
 
-    const token = jwt.sign(
-      { id: user._id.toString(), username: user.username },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+res.json({
+  success: true,
+  message: 'Account created successfully. Your account is pending activation after payment.'
+});
 
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        businessName: user.businessName,
-        username: user.username,
-        email: user.email
-      }
-    });
   } catch (err) {
     console.error('Signup error:', err);
     res.status(500).json({ success: false, error: 'Server error during signup' });
@@ -116,6 +111,7 @@ const UserSchema = new Schema({
   username: { type: String, required: true, unique: true },
   email: { type: String, default: '', unique: true, sparse: true },
   password: { type: String, required: true },
+  isActive: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
