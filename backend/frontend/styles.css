@@ -423,6 +423,42 @@ label {
   color: #ff8f84;
   border: 1px solid rgba(231, 76, 60, 0.3);
 }
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 🔥 MOBILE FIX */
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header-right {
+    order: -1; /* 👈 moves login/logout ABOVE */
+  }
+
+  .header-left {
+    flex-direction: column;
+    text-align: center;
+  }
+}
 /* Responsive */
 @media (max-width: 900px) {
   #stats {

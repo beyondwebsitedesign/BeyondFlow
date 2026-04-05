@@ -47,19 +47,18 @@
   <!-- DASHBOARD APP -->
   <div id="app" style="display:none;">
       <!-- Dashboard Header -->
-<div id="dashboard-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+<div id="dashboard-header" class="dashboard-header">
 
-  <div style="display:flex; align-items:center; gap:10px;">
-    <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:60px;" loading="lazy" draggable="false">
+  <div class="header-left">
+    <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:60px;">
     <h1>BeyondFlow Dashboard</h1>
   </div>
 
- <div style="display:flex; align-items:center; gap:10px;">
-  <span id="user-display" style="font-weight:500;"></span>
-  <button onclick="logout()" style="padding:8px 12px; cursor:pointer;">
-    Logout
-  </button>
-</div>
+  <div class="header-right">
+    <span id="user-display"></span>
+    <button onclick="logout()">Logout</button>
+  </div>
+
 </div>
 <div id="daily-verse"></div>
 
