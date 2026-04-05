@@ -17,11 +17,16 @@
   <!-- LOGIN OVERLAY -->
   <div id="login-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:black;display:flex;align-items:center;justify-content:center;z-index:1000;">
     <form id="login-form" style="display:flex;flex-direction:column;gap:10px;padding:20px;border:1px solid gold;border-radius:8px;">
-      <h2>Login</h2>
-      <input type="text" id="username" placeholder="Username" required>
-      <input type="password" id="password" placeholder="Password" required>
-      <button type="submit">Login</button>
-    </form>
+  <h2>Login</h2>
+
+  <input type="text" id="business-name" placeholder="Business Name (signup only)">
+  <input type="text" id="username" placeholder="Username" required>
+  <input type="email" id="signup-email" placeholder="Email (signup only)">
+  <input type="password" id="password" placeholder="Password" required>
+
+  <button type="submit">Login</button>
+  <button type="button" onclick="signup()">Create Account</button>
+</form>
   </div>
 
   <!-- Dashboard Header -->
@@ -31,16 +36,15 @@
   <div id="daily-verse"></div>
 </div>
 
-<nav class="dashboard-quicknav">
+  <!-- DASHBOARD APP -->
+  <div id="app" style="display:none;">
+    <nav class="dashboard-quicknav">
   <a href="#clients-section"><i class="fa-solid fa-user-group"></i><span>Clients</span></a>
   <a href="#referrals-section"><i class="fa-solid fa-handshake"></i><span>Referrals</span></a>
   <a href="#calendar-section"><i class="fa-solid fa-calendar-days"></i><span>Schedule</span></a>
   <a href="#todo-section"><i class="fa-solid fa-list-check"></i><span>To-Do</span></a>
   <a href="#invoice-section"><i class="fa-solid fa-file-invoice-dollar"></i><span>Invoices</span></a>
 </nav>
-
-  <!-- DASHBOARD APP -->
-  <div id="app" style="display:none;">
     <section id="stats">
       <div class="card">
         <h3>Total Clients</h3>
@@ -136,7 +140,6 @@
   <button onclick="addReferral()">Add Referral</button>
     </section>
 
-  </div>
 
 <section id="calendar-section">
   <h2>Schedule</h2>
@@ -215,10 +218,28 @@
 
   <div id="invoice-print" style="display:none;"></div>
 </section>
+  </div>
 <!-- LOGIN SCRIPT -->
 <script>
 const loginOverlay = document.getElementById('login-overlay');
 const app = document.getElementById('app');
+
+function loadDashboard() {
+  loginOverlay.style.display = 'none';
+  app.style.display = 'block';
+
+  if (!document.querySelector('script[src="dashboard.js"]')) {
+    const script = document.createElement('script');
+    script.src = 'dashboard.js';
+    document.body.appendChild(script);
+
+    script.onload = () => {
+      if (window.init) window.init();
+    };
+  } else {
+    if (window.init) window.init();
+  }
+}
 
 // Login function
 async function login(username, password) {
@@ -228,25 +249,15 @@ async function login(username, password) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
+
     const data = await res.json();
 
     if (data.success) {
-      // Hide login overlay and show dashboard
-      loginOverlay.style.display = 'none';
-      app.style.display = 'block';
-
-      // Load dashboard.js dynamically
-      const script = document.createElement('script');
-      script.src = 'dashboard.js';
-      document.body.appendChild(script);
-
-      // Initialize dashboard after script loads
-      script.onload = () => {
-        if (window.init) window.init();
-      };
-
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      loadDashboard();
     } else {
-      alert('Login failed. Check username/password.');
+      alert(data.message || 'Login failed. Check username/password.');
     }
   } catch (err) {
     console.error('Login error:', err);
@@ -254,12 +265,49 @@ async function login(username, password) {
   }
 }
 
+// Signup function
+async function signup() {
+  const businessName = document.getElementById('business-name').value.trim();
+  const username = document.getElementById('username').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('password').value;
+
+  try {
+    const res = await fetch('https://beyondflow-production.up.railway.app/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ businessName, username, email, password })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('currentUser', JSON.stringify(data.user));
+      loadDashboard();
+    } else {
+      alert(data.error || 'Signup failed');
+    }
+  } catch (err) {
+    console.error('Signup error:', err);
+    alert('Signup failed. Check console for details.');
+  }
+}
+
 // Login form submit
 document.getElementById('login-form').addEventListener('submit', e => {
   e.preventDefault();
-  const username = document.getElementById('username').value;
+  const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   login(username, password);
+});
+
+// Auto-login if token already exists
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    loadDashboard();
+  }
 });
 </script>
 <script>
