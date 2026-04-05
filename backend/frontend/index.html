@@ -327,7 +327,9 @@ async function signup() {
 
     const data = await res.json();
 
-    if (data.success) {
+if (data.success) {
+  document.getElementById('payment-section').style.display = 'block';
+
   document.getElementById('business-name').value = '';
   document.getElementById('username').value = '';
   document.getElementById('signup-email').value = '';
