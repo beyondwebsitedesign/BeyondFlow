@@ -25,19 +25,30 @@
   <input type="password" id="password" placeholder="Password" required>
 
   <button type="submit">Login</button>
-  <button type="button" onclick="signup()">Create Account</button>
+  <button type="button" onclick="signup()">Create Account (Activation Required)</button>
 </form>
   </div>
 
-  <!-- Dashboard Header -->
-<div id="dashboard-header" style="display:flex; flex-direction:column; align-items:center; margin-bottom:20px;">
-  <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:150px;" loading="lazy" draggable="false">
-  <h1>BeyondFlow Dashboard</h1>
-  <div id="daily-verse"></div>
-</div>
 
   <!-- DASHBOARD APP -->
   <div id="app" style="display:none;">
+      <!-- Dashboard Header -->
+<div id="dashboard-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+
+  <div style="display:flex; align-items:center; gap:10px;">
+    <img src="images/B-removebg-preview.png" alt="BeyondFlow Logo" style="height:60px;" loading="lazy" draggable="false">
+    <h1>BeyondFlow Dashboard</h1>
+  </div>
+
+ <div style="display:flex; align-items:center; gap:10px;">
+  <span id="user-display" style="font-weight:500;"></span>
+  <button onclick="logout()" style="padding:8px 12px; cursor:pointer;">
+    Logout
+  </button>
+</div>
+</div>
+<div id="daily-verse"></div>
+
     <nav class="dashboard-quicknav">
   <a href="#clients-section"><i class="fa-solid fa-user-group"></i><span>Clients</span></a>
   <a href="#referrals-section"><i class="fa-solid fa-handshake"></i><span>Referrals</span></a>
@@ -223,6 +234,14 @@
 <script>
 const loginOverlay = document.getElementById('login-overlay');
 const app = document.getElementById('app');
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    loginOverlay.style.display = 'flex';
+    app.style.display = 'none';
+  }
+});
 
 function loadDashboard() {
   loginOverlay.style.display = 'none';
@@ -264,7 +283,20 @@ async function login(username, password) {
     alert('Login failed. Check console for details.');
   }
 }
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('token');
 
+  if (!token) {
+    loginOverlay.style.display = 'flex';
+    app.style.display = 'none';
+  }
+
+  const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+
+  if (user && document.getElementById('user-display')) {
+    document.getElementById('user-display').textContent =
+`Welcome, ${user.businessName || user.username} 👋`  }
+});
 // Signup function
 async function signup() {
   const businessName = document.getElementById('business-name').value.trim();
@@ -282,12 +314,14 @@ async function signup() {
     const data = await res.json();
 
     if (data.success) {
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('currentUser', JSON.stringify(data.user));
-      loadDashboard();
-    } else {
-      alert(data.error || 'Signup failed');
-    }
+  alert(data.message || 'Account created. Your account is pending activation.');
+  document.getElementById('business-name').value = '';
+  document.getElementById('username').value = '';
+  document.getElementById('signup-email').value = '';
+  document.getElementById('password').value = '';
+} else {
+  alert(data.error || 'Signup failed');
+}
   } catch (err) {
     console.error('Signup error:', err);
     alert('Signup failed. Check console for details.');
@@ -302,13 +336,11 @@ document.getElementById('login-form').addEventListener('submit', e => {
   login(username, password);
 });
 
-// Auto-login if token already exists
-document.addEventListener('DOMContentLoaded', () => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    loadDashboard();
-  }
-});
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('currentUser');
+  location.reload();
+}
 </script>
 <script>
   function newInvoice() {
