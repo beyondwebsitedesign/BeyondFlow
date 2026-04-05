@@ -6,13 +6,21 @@ let currentClientId = (localStorage.getItem('currentClientId')) || null;
 let currentInvoiceId = null;
 let invoiceClients = [];
 
-
+function getAuthHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
+}
 // ---------------- CLIENTS ----------------
 async function fetchClients() {
   try {
-    const res = await fetch(`${apiBase}/clients`);
-    if (!res.ok) throw new Error('Failed to load clients');
+const res = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
 
+if (!res.ok) throw new Error('Failed to load clients');
     const clients = await res.json();
 
     // Get sort option
@@ -52,15 +60,16 @@ async function fetchClients() {
 
 async function addClient() {
   const name = document.getElementById('client-name').value.trim();
-const phone = document.getElementById('client-phone').value.trim();
-const email = document.getElementById('client-email').value.trim();
-const website = document.getElementById('client-website').value.trim();
+  const phone = document.getElementById('client-phone').value.trim();
+  const email = document.getElementById('client-email').value.trim();
+  const website = document.getElementById('client-website').value.trim();
+
   if (!name) return alert('Enter a name');
 
   try {
     const res = await fetch(`${apiBase}/clients`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ name, phone, email, website })
     });
 
@@ -75,13 +84,16 @@ const website = document.getElementById('client-website').value.trim();
     await updateStats();
 
   } catch (err) {
-    console.error('Add client error:', err);
-    alert('Error adding client: ' + err.message);
+    console.error(err);
+    alert(err.message);
   }
 }
 async function editClient(id) {
   try {
-    const res = await fetch(`${apiBase}/clients`);
+    const res = await fetch(`${apiBase}/clients`, {
+      headers: getAuthHeaders()
+    });
+
     const clients = await res.json();
     const client = clients.find(c => c._id === id);
     if (!client) return alert('Client not found');
@@ -95,12 +107,12 @@ async function editClient(id) {
 
     const editRes = await fetch(`${apiBase}/clients/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         name: newName,
         phone: newPhone,
         email: newEmail,
-          website: newWebsite
+        website: newWebsite
       })
     });
 
@@ -110,16 +122,17 @@ async function editClient(id) {
     await updateStats();
 
   } catch (err) {
-    console.error('Edit client error:', err);
-    alert('Error editing client: ' + err.message);
+    console.error(err);
+    alert(err.message);
   }
 }
 async function deleteClient(id) {
-  if (!confirm('Are you sure you want to delete this client?')) return;
+  if (!confirm('Are you sure?')) return;
 
   try {
     const res = await fetch(`${apiBase}/clients/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
 
     if (!res.ok) throw new Error('Failed to delete client');
@@ -128,21 +141,19 @@ async function deleteClient(id) {
     await updateStats();
 
   } catch (err) {
-    console.error('Delete client error:', err);
-    alert('Error deleting client: ' + err.message);
+    console.error(err);
+    alert(err.message);
   }
 }
 async function saveNotes() {
-  if (!currentClientId) {
-    return alert('No client selected');
-  }
+  if (!currentClientId) return alert('No client selected');
 
   const notes = document.getElementById('profile-notes').value;
 
   try {
     const res = await fetch(`${apiBase}/clients/${currentClientId}/notes`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ notes })
     });
 
@@ -150,14 +161,16 @@ async function saveNotes() {
 
     alert('Notes saved');
   } catch (err) {
-    console.error('Save notes error:', err);
-    alert('Error saving notes: ' + err.message);
+    console.error(err);
+    alert(err.message);
   }
 }
 // ---------------- EXPORT CLIENTS ----------------
 async function exportClientsCSV() {
   try {
-    const res = await fetch(`${apiBase}/clients`);
+const res = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
     const clients = await res.json();
 
     if (!clients.length) return alert('No clients to export.');
@@ -210,10 +223,10 @@ async function importClientsCSV() {
 
     try {
       await fetch(`${apiBase}/clients`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(clientData)
-      });
+  method: 'POST',
+  headers: getAuthHeaders(),
+  body: JSON.stringify(clientData)
+});
     } catch (err) {
       console.error('Import client error:', err);
     }
@@ -230,7 +243,9 @@ window.importClientsCSV = importClientsCSV;
 // ---------------- REFERRALS ----------------
 async function fetchReferrals() {
   try {
-    const res = await fetch(`${apiBase}/referrals`);
+const res = await fetch(`${apiBase}/referrals`, {
+  headers: getAuthHeaders()
+});
     const referrals = await res.json();
 
     const sortOption = document.getElementById('referral-sort').value;
@@ -270,7 +285,7 @@ async function addReferral() {
   try {
     const res = await fetch(`${apiBase}/referrals`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({ referrer, referred, credit, type })
     });
 
@@ -290,7 +305,9 @@ async function addReferral() {
 // ---------------- EDIT REFERRAL ----------------
 async function editReferral(id) {
   try {
-    const res = await fetch(`${apiBase}/referrals`);
+const res = await fetch(`${apiBase}/referrals`, {
+  headers: getAuthHeaders()
+});
     const referrals = await res.json();
     const referral = referrals.find(r => r._id === id);
     if (!referral) return alert('Referral not found');
@@ -305,7 +322,7 @@ async function editReferral(id) {
 
     const editRes = await fetch(`${apiBase}/referrals/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({
         referrer: newReferrer,
         referred: newReferred,
@@ -330,8 +347,9 @@ async function deleteReferral(id) {
 
   try {
     const res = await fetch(`${apiBase}/referrals/${id}`, {
-      method: 'DELETE'
-    });
+  method: 'DELETE',
+  headers: getAuthHeaders()
+});
 
     if (!res.ok) throw new Error('Failed to delete referral');
 
@@ -363,7 +381,7 @@ async function addProject() {
   try {
     const res = await fetch(`${apiBase}/clients/${currentClientId}/projects`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({
         name,
         description,
@@ -395,8 +413,9 @@ async function deleteProject(clientId, projectId) {
 
   try {
     const res = await fetch(`${apiBase}/clients/${clientId}/projects/${projectId}`, {
-      method: 'DELETE'
-    });
+  method: 'DELETE',
+  headers: getAuthHeaders()
+});
 
     if (!res.ok) throw new Error('Failed to delete project');
 
@@ -410,7 +429,9 @@ async function deleteProject(clientId, projectId) {
 async function editProject(clientId, projectId) {
   try {
     // Get latest client data
-    const res = await fetch(`${apiBase}/clients`);
+const res = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
     const clients = await res.json();
     const client = clients.find(c => c._id === clientId);
     const project = client?.projects?.find(p => p.id === projectId);
@@ -428,7 +449,7 @@ async function editProject(clientId, projectId) {
 
     const updateRes = await fetch(`${apiBase}/clients/${clientId}/projects/${projectId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({
         name,
         description,
@@ -454,7 +475,9 @@ async function openClient(id) {
 
   document.getElementById('client-profile').style.display = 'block';
 
-  const res = await fetch(`${apiBase}/clients`);
+const res = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
   const clients = await res.json();
   const client = clients.find(c => c._id === id);
   if (!client) return;
@@ -499,7 +522,9 @@ clientEvents.forEach(ev => {
   projectList.appendChild(li);
 });
 
-  const refRes = await fetch(`${apiBase}/referrals`);
+const refRes = await fetch(`${apiBase}/referrals`, {
+  headers: getAuthHeaders()
+});
   const referrals = await refRes.json();
   const clientRefs = referrals.filter(r => r.referrer === client.name);
  document.getElementById('profile-referrals').innerHTML = clientRefs.map(r => {
@@ -520,7 +545,9 @@ const referredClient = clients.find(
   return `<li>${r.referred} ($${r.credit})</li>`;
 }).join('');
 
-const invoiceRes = await fetch(`${apiBase}/invoices`);
+const invoiceRes = await fetch(`${apiBase}/invoices`, {
+  headers: getAuthHeaders()
+});
 const invoices = await invoiceRes.json();
 
 const clientInvoices = invoices.filter(inv => inv.clientId === client._id);
@@ -567,7 +594,7 @@ async function saveStatus() {
   try {
     const res = await fetch(`${apiBase}/clients/${currentClientId}/status`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({ status })
     });
 
@@ -586,9 +613,12 @@ async function saveStatus() {
 window.saveStatus = saveStatus;
 // ---------------- STATS ----------------
 async function updateStats() {
-  const clientsRes = await fetch(`${apiBase}/clients`);
-  const referralsRes = await fetch(`${apiBase}/referrals`);
-
+const clientsRes = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
+const referralsRes = await fetch(`${apiBase}/referrals`, {
+  headers: getAuthHeaders()
+});
   const clients = await clientsRes.json();
   const referrals = await referralsRes.json();
 
@@ -637,7 +667,9 @@ loadDailyVerse();
 let draggedTodoId = null;
 
 async function fetchTodos() {
-  const res = await fetch(`${apiBase}/todos`);
+const res = await fetch(`${apiBase}/todos`, {
+  headers: getAuthHeaders()
+});
   const todos = await res.json();
 
   todos.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -668,7 +700,7 @@ async function addTodo() {
 
   await fetch(`${apiBase}/todos`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
     body: JSON.stringify({ text })
   });
 
@@ -680,7 +712,7 @@ async function addTodo() {
 async function toggleTodo(id, completed) {
   await fetch(`${apiBase}/todos/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
     body: JSON.stringify({ completed })
   });
 }
@@ -688,8 +720,10 @@ async function toggleTodo(id, completed) {
 // ---------------- DELETE ----------------
 async function deleteTodo(id) {
   try {
-    const res = await fetch(`${apiBase}/todos/${id}`, { method: 'DELETE' });
-
+const res = await fetch(`${apiBase}/todos/${id}`, {
+  method: 'DELETE',
+  headers: getAuthHeaders()
+});
     if (!res.ok) throw new Error('Failed to delete todo');
 
     // Remove from UI immediately
@@ -713,7 +747,7 @@ async function editTodoInline(id, spanElement) {
   try {
     const res = await fetch(`${apiBase}/todos/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({ text: newText })
     });
 
@@ -780,7 +814,7 @@ function enableTodoDragAndDrop() {
   try {
     const res = await fetch(`${apiBase}/todos/reorder`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({ order: newOrder })
     });
 
@@ -842,8 +876,9 @@ function initCalendar() {
 
         try {
           const res = await fetch(`${apiBase}/events/${eventObj.id}`, {
-            method: 'DELETE'
-          });
+  method: 'DELETE',
+  headers: getAuthHeaders()
+});
 
           if (!res.ok) throw new Error('Failed to delete event');
 
@@ -878,7 +913,7 @@ function initCalendar() {
         try {
           const res = await fetch(`${apiBase}/events/${eventObj.id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+  headers: getAuthHeaders(),
             body: JSON.stringify({ title: newTitle, date: newDate })
           });
 
@@ -911,7 +946,7 @@ async function addEvent() {
   try {
     const res = await fetch(`${apiBase}/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify({ title, date: dateTime, client })
     });
 
@@ -944,7 +979,9 @@ async function addEvent() {
 
 async function addEventToClientProfile(eventId, clientName, title, dateTime) {
   // Find the client
-  const res = await fetch(`${apiBase}/clients`);
+const res = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
   const clients = await res.json();
   const client = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
   if (!client) return; // client not found
@@ -967,7 +1004,9 @@ async function addEventToClientProfile(eventId, clientName, title, dateTime) {
 // Fetch events from backend
 async function fetchEvents() {
   try {
-    const res = await fetch(`${apiBase}/events`);
+const res = await fetch(`${apiBase}/events`, {
+  headers: getAuthHeaders()
+});
     const events = await res.json();
 
     calendar.removeAllEvents();
@@ -991,7 +1030,10 @@ async function deleteEvent(id) {
   if (!confirm('Delete this event?')) return;
 
   try {
-    const res = await fetch(`${apiBase}/events/${id}`, { method: 'DELETE' });
+const res = await fetch(`${apiBase}/events/${id}`, {
+  method: 'DELETE',
+  headers: getAuthHeaders()
+});
     if (!res.ok) throw new Error('Failed to delete event');
     await fetchEvents();
   } catch(err) {
@@ -1007,7 +1049,9 @@ window.deleteEvent = deleteEvent;
 
 async function fetchInvoices() {
   try {
-    const res = await fetch(`${apiBase}/invoices`);
+const res = await fetch(`${apiBase}/invoices`, {
+  headers: getAuthHeaders()
+});
     const invoices = await res.json();
 
     const history = document.getElementById('invoice-history');
@@ -1031,7 +1075,9 @@ async function fetchInvoices() {
 
 async function fetchClientsForInvoice() {
   try {
-    const res = await fetch(`${apiBase}/clients`);
+const res = await fetch(`${apiBase}/clients`, {
+  headers: getAuthHeaders()
+});
     const clients = await res.json();
     invoiceClients = clients;
 
@@ -1047,7 +1093,9 @@ async function fetchClientsForInvoice() {
 }
 async function loadInvoice(id) {
   try {
-    const res = await fetch(`${apiBase}/invoices`);
+const res = await fetch(`${apiBase}/invoices`, {
+  headers: getAuthHeaders()
+});
     const invoices = await res.json();
     const invoice = invoices.find(inv => inv._id === id);
     if (!invoice) return alert('Invoice not found');
@@ -1184,7 +1232,7 @@ async function saveInvoice() {
 
     const res = await fetch(url, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     });
 
@@ -1292,8 +1340,9 @@ async function deleteInvoice() {
 
   try {
     const res = await fetch(`${apiBase}/invoices/${currentInvoiceId}`, {
-      method: 'DELETE'
-    });
+  method: 'DELETE',
+  headers: getAuthHeaders()
+});
 
     const data = await res.json();
     if (!res.ok || !data.success) {
