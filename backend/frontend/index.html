@@ -314,7 +314,9 @@ async function signup() {
     const data = await res.json();
 
     if (data.success) {
-  alert(data.message || 'Account created. Your account is pending activation.');
+alert(
+  "Account created.\n\nComplete your subscription here:\https://square.link/u/977Z3k4a"
+);
   document.getElementById('business-name').value = '';
   document.getElementById('username').value = '';
   document.getElementById('signup-email').value = '';
