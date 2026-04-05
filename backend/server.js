@@ -1,8 +1,8 @@
 // ================= SERVER.JS =================
 import dotenv from 'dotenv';
-
 dotenv.config();
 
+import jwt from 'jsonwebtoken';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
@@ -21,25 +21,107 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 
-// ---------------- USERS ----------------
-let users = [
-  { username: 'admin', password: bcrypt.hashSync('password123', 10) }
-];
 
 // ---------------- LOGIN ----------------
-app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-  if (!bcrypt.compareSync(password, user.password))
-    return res.status(401).json({ success: false, message: 'Invalid credentials' });
-  res.json({ success: true });
+app.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    const passwordMatches = bcrypt.compareSync(password, user.password);
+    if (!passwordMatches) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id.toString(), username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        businessName: user.businessName,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, message: 'Server error during login' });
+  }
+});
+app.post('/signup', async (req, res) => {
+  try {
+    const { businessName, username, email, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password are required' });
+    }
+
+    const existingUser = await User.findOne({
+      $or: [
+        { username },
+        ...(email ? [{ email }] : [])
+      ]
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'User already exists' });
+    }
+
+    const hashedPassword = bcrypt.hashSync(password, 10);
+
+    const user = await User.create({
+      businessName: businessName || '',
+      username,
+      email: email || '',
+      password: hashedPassword
+    });
+
+    const token = jwt.sign(
+      { id: user._id.toString(), username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        businessName: user.businessName,
+        username: user.username,
+        email: user.email
+      }
+    });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ success: false, error: 'Server error during signup' });
+  }
 });
 
 // ---------------- SCHEMAS ----------------
 const { Schema, model } = mongoose;
 
+const UserSchema = new Schema({
+  businessName: { type: String, default: '' },
+  username: { type: String, required: true, unique: true },
+  email: { type: String, default: '', unique: true, sparse: true },
+  password: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = model('User', UserSchema);
 const ClientSchema = new Schema({
+    ownerId: { type: String, required: true },
   name: String,
   phone: { type: String, default: '' },
   email: { type: String, default: '' },
@@ -51,6 +133,7 @@ const ClientSchema = new Schema({
 const Client = model('Client', ClientSchema);
 
 const ReferralSchema = new Schema({
+    ownerId: { type: String, required: true },
   referrer: String,
   referred: String,
   type: String,
@@ -59,6 +142,7 @@ const ReferralSchema = new Schema({
 const Referral = model('Referral', ReferralSchema);
 
 const TodoSchema = new Schema({
+    ownerId: { type: String, required: true },
   text: String,
   completed: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
@@ -67,6 +151,7 @@ const TodoSchema = new Schema({
 const Todo = model('Todo', TodoSchema);
 
 const EventSchema = new Schema({
+    ownerId: { type: String, required: true },
   title: String,
   date: String,
   client: { type: String, default: '' }
@@ -74,6 +159,7 @@ const EventSchema = new Schema({
 const Event = model('Event', EventSchema);
 
 const InvoiceSchema = new Schema({
+    ownerId: { type: String, required: true },
   invoiceNumber: String,
   issueDate: String,
   dueDate: String,
@@ -102,73 +188,147 @@ const InvoiceSchema = new Schema({
 
 const Invoice = model('Invoice', InvoiceSchema);
 
+function authenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, error: 'Invalid token' });
+  }
+}
+
 // ---------------- CLIENTS ----------------
-app.get('/clients', async (req, res) => res.json(await Client.find()));
+app.get('/clients', authenticate, async (req, res) => {
+  res.json(await Client.find({ ownerId: req.user.id }));
+});
 
-app.post('/clients', async (req, res) => {
-  const client = await Client.create(req.body);
+app.post('/clients', authenticate, async (req, res) => {
+  const client = await Client.create({
+    ...req.body,
+    ownerId: req.user.id
+  });
   res.json({ success: true, client });
 });
 
-app.put('/clients/:id', async (req, res) => {
+app.put('/clients/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const client = await Client.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
+  const client = await Client.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    req.body,
+    { returnDocument: 'after' }
+  );
+
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
   res.json({ success: true, client });
 });
 
-app.put('/clients/:id/notes', async (req, res) => {
+app.put('/clients/:id/notes', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
 
-  const client = await Client.findByIdAndUpdate(id, { notes: req.body.notes || '' }, { returnDocument: 'after' });
-  if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+  const client = await Client.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    { notes: req.body.notes || '' },
+    { returnDocument: 'after' }
+  );
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
   res.json({ success: true, notes: client.notes });
 });
 
-app.put('/clients/:id/status', async (req, res) => {
+app.put('/clients/:id/status', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
 
-  const client = await Client.findByIdAndUpdate(id, { status: req.body.status || 'Lead' }, { returnDocument: 'after' });
-  if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+  const client = await Client.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    { status: req.body.status || 'Lead' },
+    { returnDocument: 'after' }
+  );
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
   res.json({ success: true, status: client.status });
 });
 
-app.delete('/clients/:id', async (req, res) => {
+app.delete('/clients/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
 
-  const client = await Client.findByIdAndDelete(id);
-  if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+  const client = await Client.findOneAndDelete({
+    _id: id,
+    ownerId: req.user.id
+  });
 
-  await Referral.deleteMany({ referrer: client.name });
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
+  await Referral.deleteMany({
+    ownerId: req.user.id,
+    referrer: client.name
+  });
+
   res.json({ success: true });
 });
 
 // ---------------- PROJECTS ----------------
-app.get('/clients/:id/projects', async (req, res) => {
+app.get('/clients/:id/projects', authenticate, async (req, res) => {
   const { id } = req.params;
 
   if (!isValidId(id)) {
     return res.status(400).json({ success: false, error: 'Invalid ID' });
   }
 
-  const client = await Client.findById(id);
+  const client = await Client.findOne({
+    _id: id,
+    ownerId: req.user.id
+  });
+
   if (!client) {
     return res.status(404).json({ success: false, error: 'Client not found' });
   }
 
   res.json({ success: true, projects: client.projects });
 });
-app.post('/clients/:id/projects', async (req, res) => {
-  const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const client = await Client.findById(id);
-  if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+app.post('/clients/:id/projects', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const client = await Client.findOne({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
 
   const project = { id: Date.now(), ...req.body };
   client.projects.push(project);
@@ -177,15 +337,26 @@ app.post('/clients/:id/projects', async (req, res) => {
   res.json({ success: true, project });
 });
 
-app.put('/clients/:clientId/projects/:projectId', async (req, res) => {
+app.put('/clients/:clientId/projects/:projectId', authenticate, async (req, res) => {
   const { clientId, projectId } = req.params;
-  if (!isValidId(clientId)) return res.status(400).json({ success: false, error: 'Invalid Client ID' });
 
-  const client = await Client.findById(clientId);
-  if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+  if (!isValidId(clientId)) {
+    return res.status(400).json({ success: false, error: 'Invalid Client ID' });
+  }
+
+  const client = await Client.findOne({
+    _id: clientId,
+    ownerId: req.user.id
+  });
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
 
   const project = client.projects.find(p => p.id === Number(projectId));
-  if (!project) return res.status(404).json({ success: false, error: 'Project not found' });
+  if (!project) {
+    return res.status(404).json({ success: false, error: 'Project not found' });
+  }
 
   Object.assign(project, req.body);
   await client.save();
@@ -193,12 +364,21 @@ app.put('/clients/:clientId/projects/:projectId', async (req, res) => {
   res.json({ success: true, project });
 });
 
-app.delete('/clients/:clientId/projects/:projectId', async (req, res) => {
+app.delete('/clients/:clientId/projects/:projectId', authenticate, async (req, res) => {
   const { clientId, projectId } = req.params;
-  if (!isValidId(clientId)) return res.status(400).json({ success: false, error: 'Invalid Client ID' });
 
-  const client = await Client.findById(clientId);
-  if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
+  if (!isValidId(clientId)) {
+    return res.status(400).json({ success: false, error: 'Invalid Client ID' });
+  }
+
+  const client = await Client.findOne({
+    _id: clientId,
+    ownerId: req.user.id
+  });
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
 
   client.projects = client.projects.filter(p => p.id !== Number(projectId));
   await client.save();
@@ -207,131 +387,250 @@ app.delete('/clients/:clientId/projects/:projectId', async (req, res) => {
 });
 
 // ---------------- REFERRALS ----------------
-app.get('/referrals', async (req, res) => res.json(await Referral.find()));
+app.get('/referrals', authenticate, async (req, res) => {
+  const referrals = await Referral.find({ ownerId: req.user.id });
+  res.json(referrals);
+});
 
-app.post('/referrals', async (req, res) => {
-  const referral = await Referral.create(req.body);
+app.post('/referrals', authenticate, async (req, res) => {
+  const referral = await Referral.create({
+    ...req.body,
+    ownerId: req.user.id
+  });
+
   res.json({ success: true, referral });
 });
 
-app.put('/referrals/:id', async (req, res) => {
+app.put('/referrals/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const referral = await Referral.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
-  if (!referral) return res.status(404).json({ success: false, error: 'Referral not found' });
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const referral = await Referral.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    req.body,
+    { returnDocument: 'after' }
+  );
+
+  if (!referral) {
+    return res.status(404).json({ success: false, error: 'Referral not found' });
+  }
 
   res.json({ success: true, referral });
 });
 
-app.delete('/referrals/:id', async (req, res) => {
+app.delete('/referrals/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  await Referral.findByIdAndDelete(id);
-  res.json({ success: true });
-});
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
 
-app.get('/referrals/stats', async (req, res) => {
-  const referrals = await Referral.find();
-  const totalCredits = referrals.reduce((sum, r) => sum + (r.credit || 0), 0);
-  const perReferrer = referrals.reduce((acc, r) => {
-    acc[r.referrer] = (acc[r.referrer] || 0) + r.credit;
-    return acc;
-  }, {});
-  res.json({ totalReferrals: referrals.length, totalCredits, perReferrer });
-});
+  const referral = await Referral.findOneAndDelete({
+    _id: id,
+    ownerId: req.user.id
+  });
 
-// ---------------- TODOS ----------------
-app.get('/todos', async (req, res) => res.json(await Todo.find().sort({ order: 1, createdAt: 1 })));
-
-app.post('/todos', async (req, res) => {
-  const todo = await Todo.create(req.body);
-  res.json({ success: true, todo });
-});
-
-app.put('/todos/reorder', async (req, res) => {
-  const { order } = req.body;
-  if (!Array.isArray(order)) return res.status(400).json({ success: false });
-
-  for (let i = 0; i < order.length; i++) {
-    if (!isValidId(order[i])) continue; // 👈 prevents crash
-    await Todo.findByIdAndUpdate(order[i], { order: i });
+  if (!referral) {
+    return res.status(404).json({ success: false, error: 'Referral not found' });
   }
 
   res.json({ success: true });
 });
 
-app.put('/todos/:id', async (req, res) => {
-  const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+app.get('/referrals/stats', authenticate, async (req, res) => {
+  const referrals = await Referral.find({ ownerId: req.user.id });
 
-  const todo = await Todo.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
-  if (!todo) return res.status(404).json({ success: false });
+  const totalCredits = referrals.reduce((sum, r) => sum + (r.credit || 0), 0);
+
+  const perReferrer = referrals.reduce((acc, r) => {
+    acc[r.referrer] = (acc[r.referrer] || 0) + r.credit;
+    return acc;
+  }, {});
+
+  res.json({
+    totalReferrals: referrals.length,
+    totalCredits,
+    perReferrer
+  });
+});
+// ---------------- TODOS ----------------
+app.get('/todos', authenticate, async (req, res) => {
+  const todos = await Todo.find({ ownerId: req.user.id }).sort({ order: 1, createdAt: 1 });
+  res.json(todos);
+});
+
+app.post('/todos', authenticate, async (req, res) => {
+  const todo = await Todo.create({
+    ...req.body,
+    ownerId: req.user.id
+  });
 
   res.json({ success: true, todo });
 });
 
-app.delete('/todos/:id', async (req, res) => {
-  const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
+app.put('/todos/reorder', authenticate, async (req, res) => {
+  const { order } = req.body;
 
-  await Todo.findByIdAndDelete(id);
+  if (!Array.isArray(order)) {
+    return res.status(400).json({ success: false, error: 'Order must be an array' });
+  }
+
+  for (let i = 0; i < order.length; i++) {
+    if (!isValidId(order[i])) continue;
+
+    await Todo.findOneAndUpdate(
+      { _id: order[i], ownerId: req.user.id },
+      { order: i }
+    );
+  }
+
   res.json({ success: true });
 });
 
+app.put('/todos/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const todo = await Todo.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    req.body,
+    { returnDocument: 'after' }
+  );
+
+  if (!todo) {
+    return res.status(404).json({ success: false, error: 'Todo not found' });
+  }
+
+  res.json({ success: true, todo });
+});
+
+app.delete('/todos/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const todo = await Todo.findOneAndDelete({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!todo) {
+    return res.status(404).json({ success: false, error: 'Todo not found' });
+  }
+
+  res.json({ success: true });
+});
 // ---------------- EVENTS ----------------
-app.get('/events', async (req, res) => res.json(await Event.find()));
+app.get('/events', authenticate, async (req, res) => {
+  const events = await Event.find({ ownerId: req.user.id });
+  res.json(events);
+});
 
-app.post('/events', async (req, res) => {
-  const event = await Event.create(req.body);
+app.post('/events', authenticate, async (req, res) => {
+  const event = await Event.create({
+    ...req.body,
+    ownerId: req.user.id
+  });
+
   res.json({ success: true, event });
 });
 
-app.put('/events/:id', async (req, res) => {
+app.put('/events/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const event = await Event.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
-  if (!event) return res.status(404).json({ success: false, error: 'Event not found' });
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const event = await Event.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    req.body,
+    { returnDocument: 'after' }
+  );
+
+  if (!event) {
+    return res.status(404).json({ success: false, error: 'Event not found' });
+  }
 
   res.json({ success: true, event });
 });
 
-app.delete('/events/:id', async (req, res) => {
+app.delete('/events/:id', authenticate, async (req, res) => {
   const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  await Event.findByIdAndDelete(id);
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const event = await Event.findOneAndDelete({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!event) {
+    return res.status(404).json({ success: false, error: 'Event not found' });
+  }
+
   res.json({ success: true });
 });
-
 // ---------------- INVOICES ----------------
-app.get('/invoices', async (req, res) => {
-  const invoices = await Invoice.find().sort({ createdAt: -1 });
+app.get('/invoices', authenticate, async (req, res) => {
+  const invoices = await Invoice.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
   res.json(invoices);
 });
 
-app.post('/invoices', async (req, res) => {
-  const invoice = await Invoice.create(req.body);
-  res.json({ success: true, invoice });
-});
-
-app.put('/invoices/:id', async (req, res) => {
-  const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
-
-  const invoice = await Invoice.findByIdAndUpdate(id, req.body, { returnDocument: 'after' });
-  if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+app.post('/invoices', authenticate, async (req, res) => {
+  const invoice = await Invoice.create({
+    ...req.body,
+    ownerId: req.user.id
+  });
 
   res.json({ success: true, invoice });
 });
-app.delete('/invoices/:id', async (req, res) => {
-  const { id } = req.params;
-  if (!isValidId(id)) return res.status(400).json({ success: false, error: 'Invalid ID' });
 
-  const invoice = await Invoice.findByIdAndDelete(id);
-  if (!invoice) return res.status(404).json({ success: false, error: 'Invoice not found' });
+app.put('/invoices/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const invoice = await Invoice.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    req.body,
+    { returnDocument: 'after' }
+  );
+
+  if (!invoice) {
+    return res.status(404).json({ success: false, error: 'Invoice not found' });
+  }
+
+  res.json({ success: true, invoice });
+});
+
+app.delete('/invoices/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const invoice = await Invoice.findOneAndDelete({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!invoice) {
+    return res.status(404).json({ success: false, error: 'Invoice not found' });
+  }
 
   res.json({ success: true });
 });
