@@ -460,6 +460,12 @@ label {
 .autocomplete-list div:hover {
   background: #222;
 }
+#saved-items-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
 
 /* 🔥 MOBILE FIX */
 @media (max-width: 768px) {

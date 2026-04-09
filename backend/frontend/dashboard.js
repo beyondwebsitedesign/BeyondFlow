@@ -21,9 +21,21 @@ async function fetchSavedItems() {
       headers: getAuthHeaders()
     });
 
-    if (!res.ok) return;
+    if (!res.ok) throw new Error('Failed to load saved items');
 
     savedItems = await res.json();
+
+    const list = document.getElementById('saved-items-list');
+    if (!list) return;
+
+    list.innerHTML = savedItems.map(item => `
+      <li>
+        <span style="cursor:pointer;" onclick="useSavedItem('${item._id}')">
+          ${item.name} - $${Number(item.rate || 0).toFixed(2)}
+        </span>
+        <button onclick="deleteSavedItem('${item._id}')">Delete</button>
+      </li>
+    `).join('');
   } catch (err) {
     console.error('Fetch saved items error:', err);
   }
@@ -1422,7 +1434,33 @@ async function deleteInvoice() {
     alert('Error deleting invoice: ' + err.message);
   }
 }
+async function deleteSavedItem(id) {
+  if (!confirm('Delete this saved line item?')) return;
 
+  try {
+    const res = await fetch(`${apiBase}/items/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to delete saved item');
+    }
+
+    await fetchSavedItems();
+  } catch (err) {
+    console.error('Delete saved item error:', err);
+    alert('Error deleting saved item: ' + err.message);
+  }
+}
+function useSavedItem(id) {
+  const item = savedItems.find(i => i._id === id);
+  if (!item) return;
+
+  addInvoiceItem(item.name, 1, item.rate || 0);
+}
 // ---------------- INIT ----------------
 function init() {
   document.getElementById('clients-list')?.addEventListener('click', handleClientActions);
@@ -1480,3 +1518,5 @@ window.printInvoice = printInvoice;
 window.fetchInvoices = fetchInvoices;
 window.loadInvoice = loadInvoice;
 window.deleteInvoice = deleteInvoice;
+window.deleteSavedItem = deleteSavedItem;
+window.useSavedItem = useSavedItem;

@@ -680,6 +680,24 @@ app.delete('/invoices/:id', authenticate, async (req, res) => {
 
   res.json({ success: true });
 });
+app.delete('/items/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const item = await Item.findOneAndDelete({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!item) {
+    return res.status(404).json({ success: false, error: 'Item not found' });
+  }
+
+  res.json({ success: true });
+});
 // ---------------- FRONTEND ----------------
 import path from 'path';
 import { fileURLToPath } from 'url';
