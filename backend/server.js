@@ -114,6 +114,14 @@ const UserSchema = new Schema({
   isActive: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
+const ItemSchema = new Schema({
+  ownerId: { type: String, required: true },
+  name: String,
+  rate: Number,
+  createdAt: { type: Date, default: Date.now }
+});
+
+const Item = model('Item', ItemSchema);
 
 const User = model('User', UserSchema);
 const ClientSchema = new Schema({
@@ -577,17 +585,49 @@ app.delete('/events/:id', authenticate, async (req, res) => {
 
   res.json({ success: true });
 });
+
 // ---------------- INVOICES ----------------
 app.get('/invoices', authenticate, async (req, res) => {
   const invoices = await Invoice.find({ ownerId: req.user.id }).sort({ createdAt: -1 });
   res.json(invoices);
 });
+app.get('/items', authenticate, async (req, res) => {
+  const items = await Item.find({ ownerId: req.user.id }).sort({ name: 1 });
+  res.json(items);
+});
+app.get('/clients/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
 
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const client = await Client.findOne({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
+  res.json(client);
+});
 app.post('/invoices', authenticate, async (req, res) => {
   const invoice = await Invoice.create({
     ...req.body,
     ownerId: req.user.id
   });
+
+  for (const item of req.body.items || []) {
+    if (!item.description) continue;
+
+    await Item.updateOne(
+      { ownerId: req.user.id, name: item.description },
+      { $set: { rate: item.rate } },
+      { upsert: true }
+    );
+  }
 
   res.json({ success: true, invoice });
 });
@@ -607,6 +647,16 @@ app.put('/invoices/:id', authenticate, async (req, res) => {
 
   if (!invoice) {
     return res.status(404).json({ success: false, error: 'Invoice not found' });
+  }
+
+  for (const item of req.body.items || []) {
+    if (!item.description) continue;
+
+    await Item.updateOne(
+      { ownerId: req.user.id, name: item.description },
+      { $set: { rate: item.rate } },
+      { upsert: true }
+    );
   }
 
   res.json({ success: true, invoice });

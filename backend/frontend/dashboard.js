@@ -2,9 +2,11 @@
 const apiBase = 'https://beyondflow-production.up.railway.app';
 
 // ---------------- STATE ----------------
-let currentClientId = (localStorage.getItem('currentClientId')) || null;
+let currentClientId = localStorage.getItem('currentClientId') || null;
 let currentInvoiceId = null;
 let invoiceClients = [];
+let savedItems = [];
+let calendar;
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token');
@@ -13,20 +15,30 @@ function getAuthHeaders() {
     'Authorization': `Bearer ${token}`
   };
 }
+async function fetchSavedItems() {
+  try {
+    const res = await fetch(`${apiBase}/items`, {
+      headers: getAuthHeaders()
+    });
+
+    if (!res.ok) return;
+
+    savedItems = await res.json();
+  } catch (err) {
+    console.error('Fetch saved items error:', err);
+  }
+}
 // ---------------- CLIENTS ----------------
 async function fetchClients() {
   try {
-const res = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/clients`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load clients');
 
-if (!res.ok) throw new Error('Failed to load clients');
     const clients = await res.json();
+    const sortOption = document.getElementById('client-sort')?.value || 'name-asc';
 
-    // Get sort option
-    const sortOption = document.getElementById('client-sort').value;
-
-    // Sort based on option
     clients.sort((a, b) => {
       switch (sortOption) {
         case 'name-asc': return a.name.localeCompare(b.name);
@@ -38,8 +50,9 @@ if (!res.ok) throw new Error('Failed to load clients');
     });
 
     const list = document.getElementById('clients-list');
-    list.innerHTML = '';
+    if (!list) return;
 
+    list.innerHTML = '';
     clients.forEach(c => {
       const li = document.createElement('li');
       li.innerHTML = `
@@ -51,7 +64,6 @@ if (!res.ok) throw new Error('Failed to load clients');
       `;
       list.appendChild(li);
     });
-
   } catch (err) {
     console.error(err);
     alert('Failed to load clients');
@@ -82,25 +94,27 @@ async function addClient() {
 
     await fetchClients();
     await updateStats();
-
+    await fetchClientsForInvoice();
   } catch (err) {
     console.error(err);
     alert(err.message);
   }
 }
+
 async function editClient(id) {
   try {
     const res = await fetch(`${apiBase}/clients`, {
       headers: getAuthHeaders()
     });
+    if (!res.ok) throw new Error('Failed to load clients');
 
     const clients = await res.json();
     const client = clients.find(c => c._id === id);
     if (!client) return alert('Client not found');
 
     const newName = prompt('Edit name:', client.name);
-    const newPhone = prompt('Edit phone:', client.phone);
-    const newEmail = prompt('Edit email:', client.email);
+    const newPhone = prompt('Edit phone:', client.phone || '');
+    const newEmail = prompt('Edit email:', client.email || '');
     const newWebsite = prompt('Edit website:', client.website || '');
 
     if (!newName) return alert('Name is required');
@@ -120,12 +134,17 @@ async function editClient(id) {
 
     await fetchClients();
     await updateStats();
+    await fetchClientsForInvoice();
 
+    if (currentClientId === id) {
+      await openClient(id);
+    }
   } catch (err) {
     console.error(err);
     alert(err.message);
   }
 }
+
 async function deleteClient(id) {
   if (!confirm('Are you sure?')) return;
 
@@ -137,14 +156,19 @@ async function deleteClient(id) {
 
     if (!res.ok) throw new Error('Failed to delete client');
 
+    if (currentClientId === id) {
+      closeProfile();
+    }
+
     await fetchClients();
     await updateStats();
-
+    await fetchClientsForInvoice();
   } catch (err) {
     console.error(err);
     alert(err.message);
   }
 }
+
 async function saveNotes() {
   if (!currentClientId) return alert('No client selected');
 
@@ -158,29 +182,37 @@ async function saveNotes() {
     });
 
     if (!res.ok) throw new Error('Failed to save notes');
-
     alert('Notes saved');
   } catch (err) {
     console.error(err);
     alert(err.message);
   }
 }
+
 // ---------------- EXPORT CLIENTS ----------------
 async function exportClientsCSV() {
   try {
-const res = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
-    const clients = await res.json();
+    const res = await fetch(`${apiBase}/clients`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load clients');
 
+    const clients = await res.json();
     if (!clients.length) return alert('No clients to export.');
 
-    // Create CSV content
-const headers = ['ID', 'Name', 'Phone', 'Email', 'Website', 'Status', 'Notes'];
-const rows = clients.map(c => [c._id, c.name, c.phone, c.email, c.website || '', c.status, c.notes]);
+    const headers = ['ID', 'Name', 'Phone', 'Email', 'Website', 'Status', 'Notes'];
+    const rows = clients.map(c => [
+      c._id,
+      c.name,
+      c.phone,
+      c.email,
+      c.website || '',
+      c.status,
+      c.notes
+    ]);
+
     const csvContent = [headers, ...rows].map(e => e.join(',')).join('\n');
 
-    // Download as file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -188,7 +220,6 @@ const rows = clients.map(c => [c._id, c.name, c.phone, c.email, c.website || '',
     a.download = 'clients.csv';
     a.click();
     URL.revokeObjectURL(url);
-
   } catch (err) {
     console.error('Export clients error:', err);
     alert('Error exporting clients: ' + err.message);
@@ -203,30 +234,29 @@ async function importClientsCSV() {
 
   const text = await file.text();
   const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-  
-  // First line is header, detect its columns
+
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
   const rows = lines.slice(1);
 
   for (const row of rows) {
     const cols = row.split(',').map(c => c.trim());
-    // Map columns based on header names
     const clientData = {
       name: cols[headers.indexOf('name')] || '',
       phone: cols[headers.indexOf('phone')] || '',
       email: cols[headers.indexOf('email')] || '',
       status: cols[headers.indexOf('status')] || 'Lead',
       notes: cols[headers.indexOf('notes')] || '',
-      website: cols[headers.indexOf('website')] || '',
+      website: cols[headers.indexOf('website')] || ''
     };
+
     if (!clientData.name) continue;
 
     try {
       await fetch(`${apiBase}/clients`, {
-  method: 'POST',
-  headers: getAuthHeaders(),
-  body: JSON.stringify(clientData)
-});
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(clientData)
+      });
     } catch (err) {
       console.error('Import client error:', err);
     }
@@ -235,20 +265,22 @@ async function importClientsCSV() {
   alert('Clients imported successfully!');
   await fetchClients();
   await updateStats();
+  await fetchClientsForInvoice();
 }
 
-// Make them global for HTML buttons
 window.exportClientsCSV = exportClientsCSV;
 window.importClientsCSV = importClientsCSV;
+
 // ---------------- REFERRALS ----------------
 async function fetchReferrals() {
   try {
-const res = await fetch(`${apiBase}/referrals`, {
-  headers: getAuthHeaders()
-});
-    const referrals = await res.json();
+    const res = await fetch(`${apiBase}/referrals`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load referrals');
 
-    const sortOption = document.getElementById('referral-sort').value;
+    const referrals = await res.json();
+    const sortOption = document.getElementById('referral-sort')?.value || 'referrer-asc';
 
     referrals.sort((a, b) => {
       switch (sortOption) {
@@ -260,6 +292,8 @@ const res = await fetch(`${apiBase}/referrals`, {
     });
 
     const list = document.getElementById('referrals-list');
+    if (!list) return;
+
     list.innerHTML = referrals.map(r => `
       <li>
         ${r.referrer} → ${r.referred} ($${r.credit})
@@ -285,7 +319,7 @@ async function addReferral() {
   try {
     const res = await fetch(`${apiBase}/referrals`, {
       method: 'POST',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({ referrer, referred, credit, type })
     });
 
@@ -296,18 +330,19 @@ headers: getAuthHeaders(),
 
     await fetchReferrals();
     await updateStats();
-
   } catch (err) {
     console.error('Add referral error:', err);
     alert('Error adding referral: ' + err.message);
   }
 }
-// ---------------- EDIT REFERRAL ----------------
+
 async function editReferral(id) {
   try {
-const res = await fetch(`${apiBase}/referrals`, {
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/referrals`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load referrals');
+
     const referrals = await res.json();
     const referral = referrals.find(r => r._id === id);
     if (!referral) return alert('Referral not found');
@@ -322,7 +357,7 @@ const res = await fetch(`${apiBase}/referrals`, {
 
     const editRes = await fetch(`${apiBase}/referrals/${id}`, {
       method: 'PUT',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         referrer: newReferrer,
         referred: newReferred,
@@ -341,15 +376,14 @@ headers: getAuthHeaders(),
   }
 }
 
-// ---------------- DELETE REFERRAL ----------------
 async function deleteReferral(id) {
   if (!confirm('Are you sure you want to delete this referral?')) return;
 
   try {
     const res = await fetch(`${apiBase}/referrals/${id}`, {
-  method: 'DELETE',
-  headers: getAuthHeaders()
-});
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
 
     if (!res.ok) throw new Error('Failed to delete referral');
 
@@ -361,14 +395,12 @@ async function deleteReferral(id) {
   }
 }
 
-// Make global so HTML onclick can access
 window.editReferral = editReferral;
 window.deleteReferral = deleteReferral;
 
+// ---------------- PROJECTS ----------------
 async function addProject() {
-  if (!currentClientId) {
-    return alert('No client selected');
-  }
+  if (!currentClientId) return alert('No client selected');
 
   const name = document.getElementById('project-name').value.trim();
   const description = document.getElementById('project-description').value.trim();
@@ -381,7 +413,7 @@ async function addProject() {
   try {
     const res = await fetch(`${apiBase}/clients/${currentClientId}/projects`, {
       method: 'POST',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         name,
         description,
@@ -393,52 +425,50 @@ headers: getAuthHeaders(),
 
     if (!res.ok) throw new Error('Failed to add project');
 
-    // Clear inputs
     document.getElementById('project-name').value = '';
     document.getElementById('project-description').value = '';
     document.getElementById('project-price').value = '';
     document.getElementById('project-started').value = '';
     document.getElementById('project-ended').value = '';
 
-    // Reload client profile so new project shows
     await openClient(currentClientId);
-
   } catch (err) {
     console.error('Add project error:', err);
     alert('Error adding project: ' + err.message);
   }
 }
+
 async function deleteProject(clientId, projectId) {
   if (!confirm('Delete this project?')) return;
 
   try {
     const res = await fetch(`${apiBase}/clients/${clientId}/projects/${projectId}`, {
-  method: 'DELETE',
-  headers: getAuthHeaders()
-});
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
 
     if (!res.ok) throw new Error('Failed to delete project');
 
-    await openClient(clientId); // refresh UI
-
+    await openClient(clientId);
   } catch (err) {
     console.error('Delete project error:', err);
     alert('Error deleting project: ' + err.message);
   }
 }
+
 async function editProject(clientId, projectId) {
   try {
-    // Get latest client data
-const res = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/clients`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load clients');
+
     const clients = await res.json();
     const client = clients.find(c => c._id === clientId);
-    const project = client?.projects?.find(p => p.id === projectId);
+    const project = client?.projects?.find(p => p.id === Number(projectId));
 
     if (!project) return alert('Project not found');
 
-    // Prompt edits
     const name = prompt('Project name:', project.name);
     const description = prompt('Description:', project.description);
     const price = prompt('Price:', project.price);
@@ -449,7 +479,7 @@ const res = await fetch(`${apiBase}/clients`, {
 
     const updateRes = await fetch(`${apiBase}/clients/${clientId}/projects/${projectId}`, {
       method: 'PUT',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         name,
         description,
@@ -461,13 +491,13 @@ headers: getAuthHeaders(),
 
     if (!updateRes.ok) throw new Error('Failed to update project');
 
-    await openClient(clientId); // refresh UI
-
+    await openClient(clientId);
   } catch (err) {
     console.error('Edit project error:', err);
     alert('Error editing project: ' + err.message);
   }
 }
+
 // ---------------- CLIENT PROFILE ----------------
 async function openClient(id) {
   currentClientId = id;
@@ -475,117 +505,120 @@ async function openClient(id) {
 
   document.getElementById('client-profile').style.display = 'block';
 
-const res = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
+  const res = await fetch(`${apiBase}/clients`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to load clients');
+
   const clients = await res.json();
   const client = clients.find(c => c._id === id);
   if (!client) return;
 
-document.getElementById('profile-name').textContent = client.name;
-document.getElementById('profile-phone').textContent = client.phone || '';
-document.getElementById('profile-email').textContent = client.email || '';
+  document.getElementById('profile-name').textContent = client.name;
+  document.getElementById('profile-phone').textContent = client.phone || '';
+  document.getElementById('profile-email').textContent = client.email || '';
 
-const websiteEl = document.getElementById('profile-website');
-const website = client.website || '';
-if (websiteEl) {
-  if (website) {
-    const formattedWebsite = website.startsWith('http') ? website : `https://${website}`;
-    websiteEl.textContent = website;
-    websiteEl.href = formattedWebsite;
-  } else {
-    websiteEl.textContent = '';
-    websiteEl.removeAttribute('href');
+  const websiteEl = document.getElementById('profile-website');
+  const website = client.website || '';
+  if (websiteEl) {
+    if (website) {
+      const formattedWebsite = website.startsWith('http') ? website : `https://${website}`;
+      websiteEl.textContent = website;
+      websiteEl.href = formattedWebsite;
+    } else {
+      websiteEl.textContent = '';
+      websiteEl.removeAttribute('href');
+    }
   }
-}
 
-document.getElementById('profile-status').value = client.status || 'Lead';
-document.getElementById('profile-notes').value = client.notes || '';
-
+  document.getElementById('profile-status').value = client.status || 'Lead';
+  document.getElementById('profile-notes').value = client.notes || '';
 
   const projectList = document.getElementById('profile-projects');
   projectList.innerHTML = (client.projects || []).map(p => `
-  <li>
-    <strong>${p.name}</strong> - ${p.description}
-    ($${p.price})
-    <button onclick="editProject('${id}', '${p.id}')">Edit</button>
-    <button onclick="deleteProject('${id}', '${p.id}')">Delete</button>
-  </li>
-`).join('');
+    <li>
+      <strong>${p.name}</strong> - ${p.description}
+      ($${p.price})
+      <button onclick="editProject('${id}', '${p.id}')">Edit</button>
+      <button onclick="deleteProject('${id}', '${p.id}')">Delete</button>
+    </li>
+  `).join('');
 
-const clientEvents = calendar.getEvents().filter(ev => ev.extendedProps.client === client.name);
-clientEvents.forEach(ev => {
-  const li = document.createElement('li');
-  li.textContent = `Scheduled: ${ev.title} - ${ev.start.toLocaleString()}`;
-  li.dataset.eventClient = client.name;
-  li.dataset.eventTitle = ev.title;
-  projectList.appendChild(li);
-});
+  const clientEvents = calendar.getEvents().filter(ev => ev.extendedProps.client === client.name);
+  clientEvents.forEach(ev => {
+    const li = document.createElement('li');
+    li.textContent = `Scheduled: ${ev.title} - ${ev.start.toLocaleString()}`;
+    li.dataset.eventClient = client.name;
+    li.dataset.eventTitle = ev.title;
+    projectList.appendChild(li);
+  });
 
-const refRes = await fetch(`${apiBase}/referrals`, {
-  headers: getAuthHeaders()
-});
+  const refRes = await fetch(`${apiBase}/referrals`, {
+    headers: getAuthHeaders()
+  });
   const referrals = await refRes.json();
   const clientRefs = referrals.filter(r => r.referrer === client.name);
- document.getElementById('profile-referrals').innerHTML = clientRefs.map(r => {
-const referredClient = clients.find(
-  c => c.name.trim().toLowerCase() === r.referred.trim().toLowerCase()
-);
-  if (referredClient) {
-    return `
-      <li>
-        <span onclick="openClient('${referredClient._id}')" style="cursor:pointer; color:blue; text-decoration:underline;">
-          ${r.referred}
-        </span>
-        ($${r.credit})
-      </li>
-    `;
-  }
 
-  return `<li>${r.referred} ($${r.credit})</li>`;
-}).join('');
+  document.getElementById('profile-referrals').innerHTML = clientRefs.map(r => {
+    const referredClient = clients.find(
+      c => c.name.trim().toLowerCase() === r.referred.trim().toLowerCase()
+    );
 
-const invoiceRes = await fetch(`${apiBase}/invoices`, {
-  headers: getAuthHeaders()
-});
-const invoices = await invoiceRes.json();
+    if (referredClient) {
+      return `
+        <li>
+          <span onclick="openClient('${referredClient._id}')" style="cursor:pointer; color:blue; text-decoration:underline;">
+            ${r.referred}
+          </span>
+          ($${r.credit})
+        </li>
+      `;
+    }
 
-const clientInvoices = invoices.filter(inv => inv.clientId === client._id);
+    return `<li>${r.referred} ($${r.credit})</li>`;
+  }).join('');
 
-document.getElementById('profile-invoices').innerHTML = clientInvoices.map(inv => `
-  <li>
-    <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer; color:gold; text-decoration:underline;">
-      ${inv.invoiceNumber || 'No Number'} - $${(inv.total || 0).toFixed(2)}
-    </span>
-    <span class="invoice-status invoice-status-${(inv.status || 'Draft').toLowerCase()}">
-      ${inv.status || 'Draft'}
-    </span>
-  </li>
-`).join('');
+  const invoiceRes = await fetch(`${apiBase}/invoices`, {
+    headers: getAuthHeaders()
+  });
+  const invoices = await invoiceRes.json();
+  const clientInvoices = invoices.filter(inv => inv.clientId === client._id);
+
+  document.getElementById('profile-invoices').innerHTML = clientInvoices.map(inv => `
+    <li>
+      <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer; color:gold; text-decoration:underline;">
+        ${inv.invoiceNumber || 'No Number'} - $${(inv.total || 0).toFixed(2)}
+      </span>
+      <span class="invoice-status invoice-status-${(inv.status || 'Draft').toLowerCase()}">
+        ${inv.status || 'Draft'}
+      </span>
+    </li>
+  `).join('');
 }
-// ---------------- CLOSE CLIENT PROFILE ----------------
+
 function closeProfile() {
   const profile = document.getElementById('client-profile');
   profile.style.display = 'none';
   currentClientId = null;
   localStorage.removeItem('currentClientId');
 
-  // Optional: clear input fields
   document.getElementById('profile-name').textContent = '';
   document.getElementById('profile-phone').textContent = '';
   document.getElementById('profile-email').textContent = '';
+
   const websiteEl = document.getElementById('profile-website');
-if (websiteEl) {
-  websiteEl.textContent = '';
-  websiteEl.removeAttribute('href');
-}
+  if (websiteEl) {
+    websiteEl.textContent = '';
+    websiteEl.removeAttribute('href');
+  }
+
   document.getElementById('profile-notes').value = '';
   document.getElementById('profile-status').value = 'Lead';
   document.getElementById('profile-projects').innerHTML = '';
   document.getElementById('profile-referrals').innerHTML = '';
   document.getElementById('profile-invoices').innerHTML = '';
 }
-// ---------------- SAVE CLIENT STATUS ----------------
+
 async function saveStatus() {
   if (!currentClientId) return;
 
@@ -594,14 +627,14 @@ async function saveStatus() {
   try {
     const res = await fetch(`${apiBase}/clients/${currentClientId}/status`, {
       method: 'PUT',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({ status })
     });
 
     if (!res.ok) throw new Error('Failed to save status');
 
-    await fetchClients(); // refresh client list
-    await updateStats();  // refresh stats
+    await fetchClients();
+    await updateStats();
     alert('Status saved!');
   } catch (err) {
     console.error('Save status error:', err);
@@ -609,16 +642,17 @@ headers: getAuthHeaders(),
   }
 }
 
-// Make it globally accessible for HTML
 window.saveStatus = saveStatus;
+
 // ---------------- STATS ----------------
 async function updateStats() {
-const clientsRes = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
-const referralsRes = await fetch(`${apiBase}/referrals`, {
-  headers: getAuthHeaders()
-});
+  const clientsRes = await fetch(`${apiBase}/clients`, {
+    headers: getAuthHeaders()
+  });
+  const referralsRes = await fetch(`${apiBase}/referrals`, {
+    headers: getAuthHeaders()
+  });
+
   const clients = await clientsRes.json();
   const referrals = await referralsRes.json();
 
@@ -647,6 +681,7 @@ function handleProjectActions(e) {
     console.log('delete project', e.target.dataset.client, e.target.dataset.id);
   }
 }
+
 async function loadDailyVerse() {
   try {
     const res = await fetch('https://labs.bible.org/api/?passage=random&type=json');
@@ -654,7 +689,6 @@ async function loadDailyVerse() {
 
     const verse = `${data[0].bookname} ${data[0].chapter}:${data[0].verse} - ${data[0].text}`;
     document.getElementById('daily-verse').textContent = verse;
-
   } catch (err) {
     console.error(err);
     document.getElementById('daily-verse').textContent = 'Unable to load verse.';
@@ -664,25 +698,21 @@ async function loadDailyVerse() {
 loadDailyVerse();
 
 // ---------------- TODOS ----------------
-let draggedTodoId = null;
-
 async function fetchTodos() {
-const res = await fetch(`${apiBase}/todos`, {
-  headers: getAuthHeaders()
-});
-  const todos = await res.json();
+  const res = await fetch(`${apiBase}/todos`, {
+    headers: getAuthHeaders()
+  });
+  if (!res.ok) throw new Error('Failed to load todos');
 
+  const todos = await res.json();
   todos.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   window.todos = todos;
 
   const list = document.getElementById('todo-list');
-
   list.innerHTML = todos.map(t => `
     <li data-id="${t._id}" draggable="true" style="display:flex; align-items:center; gap:10px;">
-      <input type="checkbox" ${t.completed ? 'checked' : ''} 
-        onchange="toggleTodo('${t._id}', this.checked)">
-      <span contenteditable="true" onblur="editTodoInline('${t._id}', this)" 
-        style="${t.completed ? 'text-decoration: line-through;' : ''}">
+      <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTodo('${t._id}', this.checked)">
+      <span contenteditable="true" onblur="editTodoInline('${t._id}', this)" style="${t.completed ? 'text-decoration: line-through;' : ''}">
         ${t.text}
       </span>
       <button onclick="deleteTodo('${t._id}')">❌</button>
@@ -692,7 +722,6 @@ const res = await fetch(`${apiBase}/todos`, {
   enableTodoDragAndDrop();
 }
 
-// ---------------- ADD TODO ----------------
 async function addTodo() {
   const input = document.getElementById('todo-input');
   const text = input.value.trim();
@@ -700,46 +729,39 @@ async function addTodo() {
 
   await fetch(`${apiBase}/todos`, {
     method: 'POST',
-headers: getAuthHeaders(),
+    headers: getAuthHeaders(),
     body: JSON.stringify({ text })
   });
 
   input.value = '';
-  fetchTodos();
+  await fetchTodos();
 }
 
-// ---------------- TOGGLE ----------------
 async function toggleTodo(id, completed) {
   await fetch(`${apiBase}/todos/${id}`, {
     method: 'PUT',
-headers: getAuthHeaders(),
+    headers: getAuthHeaders(),
     body: JSON.stringify({ completed })
   });
 }
 
-// ---------------- DELETE ----------------
 async function deleteTodo(id) {
   try {
-const res = await fetch(`${apiBase}/todos/${id}`, {
-  method: 'DELETE',
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/todos/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+
     if (!res.ok) throw new Error('Failed to delete todo');
 
-    // Remove from UI immediately
     const li = document.querySelector(`#todo-list li[data-id="${id}"]`);
     if (li) li.remove();
-
-    // Optional: refresh list from server
-    // await fetchTodos();
-
   } catch (err) {
     console.error('Delete todo error:', err);
     alert('Error deleting todo: ' + err.message);
   }
 }
 
-// ---------------- INLINE EDIT ----------------
 async function editTodoInline(id, spanElement) {
   const newText = spanElement.textContent.trim();
   if (!newText) return;
@@ -747,7 +769,7 @@ async function editTodoInline(id, spanElement) {
   try {
     const res = await fetch(`${apiBase}/todos/${id}`, {
       method: 'PUT',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({ text: newText })
     });
 
@@ -758,10 +780,8 @@ headers: getAuthHeaders(),
       return;
     }
 
-    // ✅ Update UI
     spanElement.textContent = data.todo.text;
 
-    // ✅ Update local todos array if you have one
     if (window.todos && Array.isArray(window.todos)) {
       const index = window.todos.findIndex(t => t._id === id);
       if (index > -1) {
@@ -802,29 +822,26 @@ function enableTodoDragAndDrop() {
   });
 
   list.addEventListener('drop', async e => {
-  e.preventDefault();
-  if (!dragged) return;
+    e.preventDefault();
+    if (!dragged) return;
 
-  const newOrder = Array.from(list.children)
-    .map(li => li.dataset.id)
-    .filter(id => id);
+    const newOrder = Array.from(list.children)
+      .map(li => li.dataset.id)
+      .filter(id => id);
 
-  console.log('CLEAN ORDER:', newOrder);
+    try {
+      const res = await fetch(`${apiBase}/todos/reorder`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ order: newOrder })
+      });
 
-  try {
-    const res = await fetch(`${apiBase}/todos/reorder`, {
-      method: 'PUT',
-headers: getAuthHeaders(),
-      body: JSON.stringify({ order: newOrder })
-    });
-
-    const data = await res.json();
-    console.log('SERVER RESPONSE:', data);
-
-  } catch (err) {
-    console.error('FETCH ERROR:', err);
-  }
-});
+      const data = await res.json();
+      console.log('SERVER RESPONSE:', data);
+    } catch (err) {
+      console.error('FETCH ERROR:', err);
+    }
+  });
 
   function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('li:not([style*="opacity: 0.5"])')];
@@ -839,15 +856,13 @@ headers: getAuthHeaders(),
     }, { offset: Number.NEGATIVE_INFINITY }).element;
   }
 }
-let calendar;
 
+// ---------------- EVENTS ----------------
 function initCalendar() {
   const calendarEl = document.getElementById('calendar');
   if (!calendarEl) return;
 
-  if (calendar) {
-    calendar.destroy();
-  }
+  if (calendar) calendar.destroy();
 
   calendar = new FullCalendar.Calendar(calendarEl, {
     initialView: 'dayGridMonth',
@@ -865,10 +880,7 @@ function initCalendar() {
 
       alert(`Event: ${eventObj.title}\nClient: ${client}\nDate: ${eventObj.start.toLocaleString()}`);
 
-      const action = prompt(
-        `Edit or Delete this event?\nType "edit" to edit, "delete" to delete.`
-      );
-
+      const action = prompt(`Edit or Delete this event?\nType "edit" to edit, "delete" to delete.`);
       if (!action) return;
 
       if (action.toLowerCase() === 'delete') {
@@ -876,17 +888,17 @@ function initCalendar() {
 
         try {
           const res = await fetch(`${apiBase}/events/${eventObj.id}`, {
-  method: 'DELETE',
-  headers: getAuthHeaders()
-});
+            method: 'DELETE',
+            headers: getAuthHeaders()
+          });
 
           if (!res.ok) throw new Error('Failed to delete event');
 
           eventObj.remove();
 
           if (currentClientId) {
-        openClient(currentClientId);
-      }
+            await openClient(currentClientId);
+          }
 
           const profileEventsEl = document.getElementById('profile-events');
           if (profileEventsEl) {
@@ -913,7 +925,7 @@ function initCalendar() {
         try {
           const res = await fetch(`${apiBase}/events/${eventObj.id}`, {
             method: 'PUT',
-  headers: getAuthHeaders(),
+            headers: getAuthHeaders(),
             body: JSON.stringify({ title: newTitle, date: newDate })
           });
 
@@ -946,7 +958,7 @@ async function addEvent() {
   try {
     const res = await fetch(`${apiBase}/events`, {
       method: 'POST',
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify({ title, date: dateTime, client })
     });
 
@@ -978,18 +990,15 @@ headers: getAuthHeaders(),
 }
 
 async function addEventToClientProfile(eventId, clientName, title, dateTime) {
-  // Find the client
-const res = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
+  const res = await fetch(`${apiBase}/clients`, {
+    headers: getAuthHeaders()
+  });
   const clients = await res.json();
   const client = clients.find(c => c.name.toLowerCase() === clientName.toLowerCase());
-  if (!client) return; // client not found
+  if (!client) return;
 
-  // Add event to profile schedule list
   const profileEventsEl = document.getElementById('profile-events');
   if (!profileEventsEl) {
-    // create container if missing
     const section = document.createElement('div');
     section.innerHTML = `<h3>Scheduled Events</h3><ul id="profile-events"></ul>`;
     document.getElementById('client-profile').appendChild(section);
@@ -1001,14 +1010,15 @@ const res = await fetch(`${apiBase}/clients`, {
   li.dataset.eventId = eventId;
   ul.appendChild(li);
 }
-// Fetch events from backend
+
 async function fetchEvents() {
   try {
-const res = await fetch(`${apiBase}/events`, {
-  headers: getAuthHeaders()
-});
-    const events = await res.json();
+    const res = await fetch(`${apiBase}/events`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load events');
 
+    const events = await res.json();
     calendar.removeAllEvents();
 
     events.forEach(ev => {
@@ -1025,59 +1035,60 @@ const res = await fetch(`${apiBase}/events`, {
   }
 }
 
-// Delete event by ID
 async function deleteEvent(id) {
   if (!confirm('Delete this event?')) return;
 
   try {
-const res = await fetch(`${apiBase}/events/${id}`, {
-  method: 'DELETE',
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/events/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
     if (!res.ok) throw new Error('Failed to delete event');
     await fetchEvents();
-  } catch(err) {
+  } catch (err) {
     console.error('Delete event error:', err);
   }
 }
 
-// make global
 window.initCalendar = initCalendar;
 window.addEvent = addEvent;
 window.fetchEvents = fetchEvents;
 window.deleteEvent = deleteEvent;
 
+// ---------------- INVOICES ----------------
 async function fetchInvoices() {
   try {
-const res = await fetch(`${apiBase}/invoices`, {
-  headers: getAuthHeaders()
-});
-    const invoices = await res.json();
+    const res = await fetch(`${apiBase}/invoices`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load invoices');
 
+    const invoices = await res.json();
     const history = document.getElementById('invoice-history');
     if (!history) return;
 
     history.innerHTML = invoices.map(inv => `
-  <li>
-    <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer;">
-      ${inv.invoiceNumber || 'No Number'} - ${inv.clientName || 'No Client'} - $${(inv.total || 0).toFixed(2)}
-    </span>
-    <span class="invoice-status invoice-status-${(inv.status || 'Draft').toLowerCase()}">
-      ${inv.status || 'Draft'}
-    </span>
-  </li>
-`).join('');
+      <li>
+        <span onclick="loadInvoice('${inv._id}')" style="cursor:pointer;">
+          ${inv.invoiceNumber || 'No Number'} - ${inv.clientName || 'No Client'} - $${(inv.total || 0).toFixed(2)}
+        </span>
+        <span class="invoice-status invoice-status-${(inv.status || 'Draft').toLowerCase()}">
+          ${inv.status || 'Draft'}
+        </span>
+      </li>
+    `).join('');
   } catch (err) {
     console.error('Fetch invoices error:', err);
   }
 }
 
-
 async function fetchClientsForInvoice() {
   try {
-const res = await fetch(`${apiBase}/clients`, {
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/clients`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load clients');
+
     const clients = await res.json();
     invoiceClients = clients;
 
@@ -1091,19 +1102,33 @@ const res = await fetch(`${apiBase}/clients`, {
     console.error('Fetch invoice clients error:', err);
   }
 }
+
+function autofillInvoiceClient() {
+  const clientId = document.getElementById('invoice-client').value;
+  const client = invoiceClients.find(c => c._id === clientId);
+  if (!client) return;
+
+  document.getElementById('invoice-client-name').value = client.name || '';
+  document.getElementById('invoice-client-email').value = client.email || '';
+  document.getElementById('invoice-client-phone').value = client.phone || '';
+  document.getElementById('invoice-client-website').value = client.website || '';
+}
+
 async function loadInvoice(id) {
   try {
-const res = await fetch(`${apiBase}/invoices`, {
-  headers: getAuthHeaders()
-});
+    const res = await fetch(`${apiBase}/invoices`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to load invoices');
+
     const invoices = await res.json();
     const invoice = invoices.find(inv => inv._id === id);
     if (!invoice) return alert('Invoice not found');
 
     currentInvoiceId = invoice._id;
     if (invoice.clientId) {
-  currentClientId = invoice.clientId;
-}
+      currentClientId = invoice.clientId;
+    }
 
     document.getElementById('invoice-number').value = invoice.invoiceNumber || '';
     document.getElementById('invoice-date').value = invoice.issueDate || '';
@@ -1133,16 +1158,6 @@ const res = await fetch(`${apiBase}/invoices`, {
     alert('Error loading invoice');
   }
 }
-function autofillInvoiceClient() {
-  const clientId = document.getElementById('invoice-client').value;
-  const client = invoiceClients.find(c => c._id === clientId);
-  if (!client) return;
-
-  document.getElementById('invoice-client-name').value = client.name || '';
-  document.getElementById('invoice-client-email').value = client.email || '';
-  document.getElementById('invoice-client-phone').value = client.phone || '';
-  document.getElementById('invoice-client-website').value = client.website || '';
-}
 
 function addInvoiceItem(description = '', quantity = 1, rate = 0) {
   const container = document.getElementById('invoice-items');
@@ -1150,15 +1165,46 @@ function addInvoiceItem(description = '', quantity = 1, rate = 0) {
 
   const row = document.createElement('div');
   row.className = 'invoice-item-row';
-  row.innerHTML = `
+ row.innerHTML = `
+  <div class="autocomplete-wrapper">
     <input type="text" class="invoice-item-description" placeholder="Service / Item" value="${description}">
-    <input type="number" class="invoice-item-qty" placeholder="Qty" value="${quantity}" min="1" step="1">
-    <input type="number" class="invoice-item-rate" placeholder="Rate" value="${rate}" min="0" step="0.01">
-    <span class="invoice-item-amount">$0.00</span>
-    <button type="button" onclick="removeInvoiceItem(this)">Remove</button>
-  `;
+    <div class="autocomplete-list"></div>
+  </div>
+  <input type="number" class="invoice-item-qty" placeholder="Qty" value="${quantity}" min="1" step="1">
+  <input type="number" class="invoice-item-rate" placeholder="Rate" value="${rate}" min="0" step="0.01">
+  <span class="invoice-item-amount">$0.00</span>
+  <button type="button" onclick="removeInvoiceItem(this)">Remove</button>
+`;
 
   container.appendChild(row);
+const descInput = row.querySelector('.invoice-item-description');
+const list = row.querySelector('.autocomplete-list');
+const rateInput = row.querySelector('.invoice-item-rate');
+
+descInput.addEventListener('input', () => {
+  const value = descInput.value.trim().toLowerCase();
+  list.innerHTML = '';
+
+  if (!value) return;
+
+  const matches = savedItems.filter(item =>
+    item.name.toLowerCase().includes(value)
+  );
+
+  matches.slice(0, 5).forEach(item => {
+    const option = document.createElement('div');
+    option.textContent = `${item.name} - $${Number(item.rate || 0).toFixed(2)}`;
+
+    option.onclick = () => {
+      descInput.value = item.name;
+      rateInput.value = item.rate || 0;
+      list.innerHTML = '';
+      recalculateInvoiceTotal();
+    };
+
+    list.appendChild(option);
+  });
+});
 
   row.querySelectorAll('input').forEach(input => {
     input.addEventListener('input', recalculateInvoiceTotal);
@@ -1232,26 +1278,25 @@ async function saveInvoice() {
 
     const res = await fetch(url, {
       method,
-headers: getAuthHeaders(),
+      headers: getAuthHeaders(),
       body: JSON.stringify(payload)
     });
 
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save invoice');
 
-currentInvoiceId = data.invoice._id;
-await fetchInvoices();
+    currentInvoiceId = data.invoice._id;
+    await fetchInvoices();
 
-if (currentClientId) {
-  await openClient(currentClientId);
-}
+    if (currentClientId) {
+      await openClient(currentClientId);
+    }
 
-alert('Invoice saved successfully');
-} catch (err) {
+    alert('Invoice saved successfully');
+  } catch (err) {
     console.error('Save invoice error:', err);
     alert('Error saving invoice: ' + err.message);
   }
-  
 }
 
 function buildInvoiceHTML() {
@@ -1340,9 +1385,9 @@ async function deleteInvoice() {
 
   try {
     const res = await fetch(`${apiBase}/invoices/${currentInvoiceId}`, {
-  method: 'DELETE',
-  headers: getAuthHeaders()
-});
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
 
     const data = await res.json();
     if (!res.ok || !data.success) {
@@ -1377,14 +1422,13 @@ async function deleteInvoice() {
     alert('Error deleting invoice: ' + err.message);
   }
 }
+
 // ---------------- INIT ----------------
 function init() {
-  // Only attach event listeners for dynamically generated elements
   document.getElementById('clients-list')?.addEventListener('click', handleClientActions);
   document.getElementById('referrals-list')?.addEventListener('click', handleReferralActions);
   document.getElementById('profile-projects')?.addEventListener('click', handleProjectActions);
 
-  // Fetch data immediately
   fetchClients();
   fetchReferrals();
   fetchTodos();
@@ -1393,19 +1437,21 @@ function init() {
   initCalendar();
   fetchClientsForInvoice();
   fetchInvoices();
+  fetchSavedItems();
 
-if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
-  addInvoiceItem();
+  if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
+    addInvoiceItem();
+  }
+
+  const invoiceDate = document.getElementById('invoice-date');
+  if (invoiceDate && !invoiceDate.value) {
+    invoiceDate.value = new Date().toISOString().split('T')[0];
+  }
 }
 
-const invoiceDate = document.getElementById('invoice-date');
-if (invoiceDate && !invoiceDate.value) {
-  invoiceDate.value = new Date().toISOString().split('T')[0];
-}
-}
-
-// Run init on page load
 document.addEventListener('DOMContentLoaded', init);
+
+// ---------------- GLOBALS ----------------
 window.addClient = addClient;
 window.addReferral = addReferral;
 window.editReferral = editReferral;
