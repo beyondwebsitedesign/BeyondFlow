@@ -441,6 +441,25 @@ label {
   align-items: center;
   gap: 10px;
 }
+.autocomplete-wrapper {
+  position: relative;
+}
+
+.autocomplete-list {
+  position: absolute;
+  background: #111;
+  border: 1px solid #333;
+  width: 100%;
+  z-index: 10;
+}
+
+.autocomplete-list div {
+  padding: 8px;
+}
+
+.autocomplete-list div:hover {
+  background: #222;
+}
 
 /* 🔥 MOBILE FIX */
 @media (max-width: 768px) {
