@@ -1477,7 +1477,7 @@ function downloadInvoicePDF() {
   temp.style.left = '-9999px';
   temp.style.top = '0';
   temp.style.width = '850px';
-  temp.style.background = '#fff';
+  temp.style.background = 'black';
   temp.style.padding = '0';
   temp.style.zIndex = '-1';
 
