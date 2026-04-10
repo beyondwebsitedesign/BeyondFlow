@@ -1465,10 +1465,6 @@ ${data.notes ? `
   </div>
 ` : ''}
 
-<div style="margin-top: 50px;">
-  <p style="margin-bottom: 40px;">Client Signature: ____________________________________</p>
-  <p>Date: ____________________________________</p>
-</div>
     </div>
   `;
 }
