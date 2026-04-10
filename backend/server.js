@@ -112,6 +112,7 @@ const UserSchema = new Schema({
   email: { type: String, default: '', unique: true, sparse: true },
   password: { type: String, required: true },
   isActive: { type: Boolean, default: false },
+  paidAt: { type: String, default: '' },
   defaultInvoiceTerms: {
     type: String,
     default: `Terms & Conditions
@@ -128,11 +129,7 @@ const UserSchema = new Schema({
 
 6. Ownership of deliverables transfers only after full payment has been received.
 
-7. Payment of this invoice constitutes acceptance of these terms and conditions.
-
-Client Signature: __________________________
-
-Date: __________________________`
+7. Payment of this invoice constitutes acceptance of these terms and conditions.`
   },
   createdAt: { type: Date, default: Date.now }
 });
@@ -618,12 +615,98 @@ app.get('/items', authenticate, async (req, res) => {
   const items = await Item.find({ ownerId: req.user.id }).sort({ name: 1 });
   res.json(items);
 });
+app.get('/stats/revenue', authenticate, async (req, res) => {
+  const invoices = await Invoice.find({ ownerId: req.user.id });
 
+  const paidInvoices = invoices.filter(inv => inv.status === 'Paid' && inv.paidAt);
+  const outstandingInvoices = invoices.filter(inv => inv.status !== 'Paid');
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+
+  const monthlyBreakdown = Array.from({ length: 12 }, (_, i) => ({
+    month: new Date(currentYear, i, 1).toLocaleString('en-US', { month: 'short' }),
+    revenue: 0
+  }));
+
+  const yearlyMap = {};
+
+  let thisMonthRevenue = 0;
+  let lastMonthRevenue = 0;
+  let thisYearRevenue = 0;
+  let lastYearRevenue = 0;
+  let outstandingRevenue = 0;
+
+  for (const inv of outstandingInvoices) {
+    outstandingRevenue += Number(inv.total || 0);
+  }
+
+  for (const inv of paidInvoices) {
+    const total = Number(inv.total || 0);
+    const paidDate = new Date(inv.paidAt);
+
+    if (Number.isNaN(paidDate.getTime())) continue;
+
+    const year = paidDate.getFullYear();
+    const month = paidDate.getMonth();
+
+    yearlyMap[year] = (yearlyMap[year] || 0) + total;
+
+    if (year === currentYear) {
+      thisYearRevenue += total;
+      monthlyBreakdown[month].revenue += total;
+
+      if (month === currentMonth) {
+        thisMonthRevenue += total;
+      }
+
+      if (month === currentMonth - 1) {
+        lastMonthRevenue += total;
+      }
+    }
+
+    if (year === currentYear - 1) {
+      lastYearRevenue += total;
+    }
+
+    if (currentMonth === 0 && year === currentYear - 1 && month === 11) {
+      lastMonthRevenue += total;
+    }
+  }
+
+  const yearlyBreakdown = Object.entries(yearlyMap)
+    .map(([year, revenue]) => ({
+      year: Number(year),
+      revenue
+    }))
+    .sort((a, b) => a.year - b.year);
+
+  const paidInvoiceCount = paidInvoices.length;
+
+  res.json({
+    success: true,
+    thisMonthRevenue,
+    lastMonthRevenue,
+    thisYearRevenue,
+    lastYearRevenue,
+    outstandingRevenue,
+    paidInvoiceCount,
+    monthlyBreakdown,
+    yearlyBreakdown
+  });
+});
 app.post('/invoices', authenticate, async (req, res) => {
-  const invoice = await Invoice.create({
+  const invoiceData = {
     ...req.body,
     ownerId: req.user.id
-  });
+  };
+
+  if (invoiceData.status === 'Paid' && !invoiceData.paidAt) {
+    invoiceData.paidAt = new Date().toISOString();
+  }
+
+  const invoice = await Invoice.create(invoiceData);
 
   for (const item of req.body.items || []) {
     if (!item.description) continue;
@@ -645,15 +728,30 @@ app.put('/invoices/:id', authenticate, async (req, res) => {
     return res.status(400).json({ success: false, error: 'Invalid ID' });
   }
 
-  const invoice = await Invoice.findOneAndUpdate(
-    { _id: id, ownerId: req.user.id },
-    req.body,
-    { new: true }
-  );
+  const existingInvoice = await Invoice.findOne({
+    _id: id,
+    ownerId: req.user.id
+  });
 
-  if (!invoice) {
+  if (!existingInvoice) {
     return res.status(404).json({ success: false, error: 'Invoice not found' });
   }
+
+  const updateData = { ...req.body };
+
+  if (updateData.status === 'Paid' && !existingInvoice.paidAt) {
+    updateData.paidAt = new Date().toISOString();
+  }
+
+  if (updateData.status !== 'Paid') {
+    updateData.paidAt = '';
+  }
+
+  const invoice = await Invoice.findOneAndUpdate(
+    { _id: id, ownerId: req.user.id },
+    updateData,
+    { new: true }
+  );
 
   for (const item of req.body.items || []) {
     if (!item.description) continue;

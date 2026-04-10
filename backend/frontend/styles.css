@@ -488,6 +488,35 @@ label {
 .signature-actions {
   margin-top: 12px;
 }
+.revenue-card {
+  position: relative;
+}
+
+.card-arrow {
+  margin-top: 8px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.revenue-breakdown-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+#revenue-summary {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.revenue-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
 
 /* 🔥 MOBILE FIX */
 @media (max-width: 768px) {

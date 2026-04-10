@@ -12,6 +12,8 @@ let signaturePad = null;
 let signatureCtx = null;
 let isDrawingSignature = false;
 let hasSignature = false;
+let revenueStats = null;
+let revenueView = 'monthly';
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token');
@@ -124,11 +126,7 @@ const DEFAULT_INVOICE_TERMS = `Terms & Conditions
 
 6. Ownership of deliverables transfers only after full payment has been received.
 
-7. Payment of this invoice constitutes acceptance of these terms and conditions.
-
-Client Signature: __________________________
-
-Date: __________________________`;
+7. Payment of this invoice constitutes acceptance of these terms and conditions.`;
 
 // ---------------- CLIENTS ----------------
 async function fetchClients() {
@@ -1389,7 +1387,7 @@ async function saveInvoice() {
 
     currentInvoiceId = data.invoice._id;
     await fetchInvoices();
-
+    await fetchRevenueStats();
     if (currentClientId) {
       await openClient(currentClientId);
     }
@@ -1716,6 +1714,7 @@ recalculateInvoiceTotal();
 clearSignature();
 
     await fetchInvoices();
+    await fetchRevenueStats();
 
     if (currentClientId) {
       await openClient(currentClientId);
@@ -1754,7 +1753,119 @@ function useSavedItem(id) {
 
   addInvoiceItem(item.name, 1, item.rate || 0);
 }
+function formatCurrency(value) {
+  return `$${Number(value || 0).toFixed(2)}`;
+}
 
+function formatPercentChange(current, previous) {
+  if (!previous) {
+    return current > 0 ? 'New activity' : 'No change';
+  }
+
+  const change = ((current - previous) / previous) * 100;
+  const sign = change > 0 ? '+' : '';
+  return `${sign}${change.toFixed(1)}%`;
+}
+
+async function fetchRevenueStats() {
+  try {
+    const res = await fetch(`${apiBase}/stats/revenue`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to load revenue stats');
+    }
+
+    revenueStats = data;
+    renderRevenueCard();
+    renderRevenueBreakdown();
+  } catch (err) {
+    console.error('Revenue stats error:', err);
+  }
+}
+
+function renderRevenueCard() {
+  if (!revenueStats) return;
+
+  const totalEl = document.getElementById('revenue-total');
+  const subtextEl = document.getElementById('revenue-subtext');
+
+  if (totalEl) {
+    totalEl.textContent = formatCurrency(revenueStats.thisMonthRevenue);
+  }
+
+  if (subtextEl) {
+    subtextEl.textContent = `This Month • ${formatPercentChange(
+      revenueStats.thisMonthRevenue,
+      revenueStats.lastMonthRevenue
+    )} vs last month`;
+  }
+}
+
+function renderRevenueBreakdown() {
+  if (!revenueStats) return;
+
+  const summaryEl = document.getElementById('revenue-summary');
+  const listEl = document.getElementById('revenue-breakdown-list');
+
+  if (!summaryEl || !listEl) return;
+
+  summaryEl.innerHTML = `
+    <div class="card">
+      <h3>This Month</h3>
+      <p>${formatCurrency(revenueStats.thisMonthRevenue)}</p>
+    </div>
+    <div class="card">
+      <h3>This Year</h3>
+      <p>${formatCurrency(revenueStats.thisYearRevenue)}</p>
+    </div>
+    <div class="card">
+      <h3>Outstanding</h3>
+      <p>${formatCurrency(revenueStats.outstandingRevenue)}</p>
+    </div>
+    <div class="card">
+      <h3>Paid Invoices</h3>
+      <p>${revenueStats.paidInvoiceCount}</p>
+    </div>
+  `;
+
+  if (revenueView === 'monthly') {
+    listEl.innerHTML = revenueStats.monthlyBreakdown.map(item => `
+      <div class="revenue-row">
+        <span>${item.month}</span>
+        <strong>${formatCurrency(item.revenue)}</strong>
+      </div>
+    `).join('');
+  } else {
+    listEl.innerHTML = revenueStats.yearlyBreakdown.map(item => `
+      <div class="revenue-row">
+        <span>${item.year}</span>
+        <strong>${formatCurrency(item.revenue)}</strong>
+      </div>
+    `).join('');
+  }
+}
+
+function toggleRevenueBreakdown() {
+  const section = document.getElementById('revenue-breakdown');
+  const arrow = document.getElementById('revenue-arrow');
+
+  if (!section) return;
+
+  const isOpen = section.style.display === 'block';
+  section.style.display = isOpen ? 'none' : 'block';
+
+  if (arrow) {
+    arrow.textContent = isOpen ? '▼' : '▲';
+  }
+}
+
+function setRevenueView(view) {
+  revenueView = view;
+  renderRevenueBreakdown();
+}
 // ---------------- INIT ----------------
 function initSignaturePad() {
   const canvas = document.getElementById('signature-pad');
@@ -1867,6 +1978,7 @@ async function init() {
   fetchInvoices();
   fetchSavedItems();
   initSignaturePad();
+  fetchRevenueStats();
 
   if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
     addInvoiceItem();
@@ -1920,3 +2032,5 @@ window.newInvoice = newInvoice;
 window.saveDefaultTerms = saveDefaultTerms;
 window.resetDefaultTerms = resetDefaultTerms;
 window.clearSignature = clearSignature;
+window.toggleRevenueBreakdown = toggleRevenueBreakdown;
+window.setRevenueView = setRevenueView;

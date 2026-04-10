@@ -82,7 +82,24 @@
         <h3>Total Credits</h3>
         <p id="total-credits">$0</p>
       </div>
+      <div class="card revenue-card" onclick="toggleRevenueBreakdown()">
+  <h3>Revenue</h3>
+<p id="revenue-total">$0</p>
+<small id="revenue-subtext">This Month • Click for breakdown</small>
+<div class="card-arrow" id="revenue-arrow">▼</div>
+</div>
     </section>
+    <section id="revenue-breakdown" style="display:none;">
+  <h2>Revenue Analytics</h2>
+
+  <div class="revenue-breakdown-controls">
+    <button type="button" onclick="setRevenueView('monthly')">Monthly</button>
+    <button type="button" onclick="setRevenueView('yearly')">Yearly</button>
+  </div>
+
+  <div id="revenue-summary"></div>
+  <div id="revenue-breakdown-list"></div>
+</section>
 
 
     <!-- Client Profile -->
