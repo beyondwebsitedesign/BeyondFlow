@@ -7,6 +7,7 @@ let currentInvoiceId = null;
 let invoiceClients = [];
 let savedItems = [];
 let calendar;
+let userDefaultInvoiceTerms = '';
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token');
@@ -40,6 +41,91 @@ async function fetchSavedItems() {
     console.error('Fetch saved items error:', err);
   }
 }
+async function fetchDefaultInvoiceTerms() {
+  try {
+    const res = await fetch(`${apiBase}/me/default-invoice-terms`, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to load default invoice terms');
+    }
+
+    userDefaultInvoiceTerms = data.defaultInvoiceTerms || '';
+    return userDefaultInvoiceTerms;
+  } catch (err) {
+    console.error('Fetch default invoice terms error:', err);
+    return '';
+  }
+}
+
+async function saveDefaultTerms() {
+  const notes = document.getElementById('invoice-notes').value.trim();
+  if (!notes) return alert('Enter terms in the notes box first.');
+
+  try {
+    const res = await fetch(`${apiBase}/me/default-invoice-terms`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ defaultInvoiceTerms: notes })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to save default terms');
+    }
+
+    userDefaultInvoiceTerms = data.defaultInvoiceTerms || '';
+    alert('Default invoice terms saved.');
+  } catch (err) {
+    console.error('Save default terms error:', err);
+    alert('Error saving default terms: ' + err.message);
+  }
+}
+
+async function resetDefaultTerms() {
+  try {
+    const res = await fetch(`${apiBase}/me/default-invoice-terms/reset`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Failed to reset default terms');
+    }
+
+    userDefaultInvoiceTerms = data.defaultInvoiceTerms || '';
+    document.getElementById('invoice-notes').value = userDefaultInvoiceTerms;
+
+    alert('Default invoice terms reset.');
+  } catch (err) {
+    console.error('Reset default terms error:', err);
+    alert('Error resetting default terms: ' + err.message);
+  }
+}
+
+const DEFAULT_INVOICE_TERMS = `Terms & Conditions
+
+1. Payment is due by the date listed on this invoice. Late payments may be subject to additional fees as permitted by law.
+
+2. This invoice reflects the agreed services, products, or work requested. Additional work outside the original scope may result in added charges.
+
+3. Deposits, if required, are non-refundable unless otherwise agreed in writing.
+
+4. If services are canceled after work has begun, the client is responsible for payment for all work completed up to the cancellation date.
+
+5. The client agrees to provide all necessary information, approvals, and access required to complete the work in a timely manner.
+
+6. Ownership of deliverables transfers only after full payment has been received.
+
+7. Payment of this invoice constitutes acceptance of these terms and conditions.
+
+Client Signature: __________________________
+
+Date: __________________________`;
+
 // ---------------- CLIENTS ----------------
 async function fetchClients() {
   try {
@@ -1310,7 +1396,24 @@ async function saveInvoice() {
     alert('Error saving invoice: ' + err.message);
   }
 }
+function newInvoice() {
+  currentInvoiceId = null;
 
+  document.getElementById('invoice-number').value = '';
+  document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('invoice-due-date').value = '';
+  document.getElementById('invoice-client').value = '';
+  document.getElementById('invoice-client-name').value = '';
+  document.getElementById('invoice-client-email').value = '';
+  document.getElementById('invoice-client-phone').value = '';
+  document.getElementById('invoice-client-website').value = '';
+  document.getElementById('invoice-status').value = 'Draft';
+document.getElementById('invoice-notes').value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
+
+  document.getElementById('invoice-items').innerHTML = '';
+  addInvoiceItem();
+  recalculateInvoiceTotal();
+}
 function buildInvoiceHTML() {
   const data = collectInvoiceData();
 
@@ -1355,7 +1458,17 @@ function buildInvoiceHTML() {
 
       <h2 style="margin-top: 20px;">Total: $${data.total.toFixed(2)}</h2>
 
-      ${data.notes ? `<p><strong>Notes:</strong> ${data.notes}</p>` : ''}
+${data.notes ? `
+  <div style="margin-top: 24px;">
+    <h3 style="margin-bottom: 10px;">Terms & Notes</h3>
+    <div style="white-space: pre-line; line-height: 1.6;">${data.notes}</div>
+  </div>
+` : ''}
+
+<div style="margin-top: 50px;">
+  <p style="margin-bottom: 40px;">Client Signature: ____________________________________</p>
+  <p>Date: ____________________________________</p>
+</div>
     </div>
   `;
 }
@@ -1408,19 +1521,20 @@ async function deleteInvoice() {
 
     currentInvoiceId = null;
 
-    document.getElementById('invoice-number').value = '';
-    document.getElementById('invoice-date').value = '';
-    document.getElementById('invoice-due-date').value = '';
-    document.getElementById('invoice-client').value = '';
-    document.getElementById('invoice-client-name').value = '';
-    document.getElementById('invoice-client-email').value = '';
-    document.getElementById('invoice-client-phone').value = '';
-    document.getElementById('invoice-client-website').value = '';
-    document.getElementById('invoice-status').value = 'Draft';
-    document.getElementById('invoice-notes').value = '';
-    document.getElementById('invoice-items').innerHTML = '';
-    addInvoiceItem();
-    recalculateInvoiceTotal();
+document.getElementById('invoice-number').value = '';
+document.getElementById('invoice-date').value = '';
+document.getElementById('invoice-due-date').value = '';
+document.getElementById('invoice-client').value = '';
+document.getElementById('invoice-client-name').value = '';
+document.getElementById('invoice-client-email').value = '';
+document.getElementById('invoice-client-phone').value = '';
+document.getElementById('invoice-client-website').value = '';
+document.getElementById('invoice-status').value = 'Draft';
+document.getElementById('invoice-notes').value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
+document.getElementById('invoice-items').innerHTML = '';
+
+addInvoiceItem();
+recalculateInvoiceTotal();
 
     await fetchInvoices();
 
@@ -1461,11 +1575,14 @@ function useSavedItem(id) {
 
   addInvoiceItem(item.name, 1, item.rate || 0);
 }
+
 // ---------------- INIT ----------------
-function init() {
+async function init() {
   document.getElementById('clients-list')?.addEventListener('click', handleClientActions);
   document.getElementById('referrals-list')?.addEventListener('click', handleReferralActions);
   document.getElementById('profile-projects')?.addEventListener('click', handleProjectActions);
+
+  await fetchDefaultInvoiceTerms();
 
   fetchClients();
   fetchReferrals();
@@ -1484,6 +1601,11 @@ function init() {
   const invoiceDate = document.getElementById('invoice-date');
   if (invoiceDate && !invoiceDate.value) {
     invoiceDate.value = new Date().toISOString().split('T')[0];
+  }
+
+  const invoiceNotes = document.getElementById('invoice-notes');
+  if (invoiceNotes && !invoiceNotes.value) {
+    invoiceNotes.value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
   }
 }
 
@@ -1520,3 +1642,6 @@ window.loadInvoice = loadInvoice;
 window.deleteInvoice = deleteInvoice;
 window.deleteSavedItem = deleteSavedItem;
 window.useSavedItem = useSavedItem;
+window.newInvoice = newInvoice;
+window.saveDefaultTerms = saveDefaultTerms;
+window.resetDefaultTerms = resetDefaultTerms;

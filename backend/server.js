@@ -112,20 +112,42 @@ const UserSchema = new Schema({
   email: { type: String, default: '', unique: true, sparse: true },
   password: { type: String, required: true },
   isActive: { type: Boolean, default: false },
+  defaultInvoiceTerms: {
+    type: String,
+    default: `Terms & Conditions
+
+1. Payment is due by the date listed on this invoice. Late payments may be subject to additional fees as permitted by law.
+
+2. This invoice reflects the agreed services, products, or work requested. Additional work outside the original scope may result in added charges.
+
+3. Deposits, if required, are non-refundable unless otherwise agreed in writing.
+
+4. If services are canceled after work has begun, the client is responsible for payment for all work completed up to the cancellation date.
+
+5. The client agrees to provide all necessary information, approvals, and access required to complete the work in a timely manner.
+
+6. Ownership of deliverables transfers only after full payment has been received.
+
+7. Payment of this invoice constitutes acceptance of these terms and conditions.
+
+Client Signature: __________________________
+
+Date: __________________________`
+  },
   createdAt: { type: Date, default: Date.now }
 });
 const ItemSchema = new Schema({
-  ownerId: { type: String, required: true },
+  ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   name: String,
   rate: Number,
   createdAt: { type: Date, default: Date.now }
 });
 
 const Item = model('Item', ItemSchema);
-
 const User = model('User', UserSchema);
+
 const ClientSchema = new Schema({
-    ownerId: { type: String, required: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   name: String,
   phone: { type: String, default: '' },
   email: { type: String, default: '' },
@@ -137,7 +159,7 @@ const ClientSchema = new Schema({
 const Client = model('Client', ClientSchema);
 
 const ReferralSchema = new Schema({
-    ownerId: { type: String, required: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   referrer: String,
   referred: String,
   type: String,
@@ -146,7 +168,7 @@ const ReferralSchema = new Schema({
 const Referral = model('Referral', ReferralSchema);
 
 const TodoSchema = new Schema({
-    ownerId: { type: String, required: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   text: String,
   completed: { type: Boolean, default: false },
   order: { type: Number, default: 0 },
@@ -155,7 +177,7 @@ const TodoSchema = new Schema({
 const Todo = model('Todo', TodoSchema);
 
 const EventSchema = new Schema({
-    ownerId: { type: String, required: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   title: String,
   date: String,
   client: { type: String, default: '' }
@@ -163,7 +185,7 @@ const EventSchema = new Schema({
 const Event = model('Event', EventSchema);
 
 const InvoiceSchema = new Schema({
-    ownerId: { type: String, required: true },
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   invoiceNumber: String,
   issueDate: String,
   dueDate: String,
@@ -211,8 +233,23 @@ function authenticate(req, res, next) {
 }
 
 // ---------------- CLIENTS ----------------
-app.get('/clients', authenticate, async (req, res) => {
-  res.json(await Client.find({ ownerId: req.user.id }));
+app.get('/clients/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+
+  if (!isValidId(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid ID' });
+  }
+
+  const client = await Client.findOne({
+    _id: id,
+    ownerId: req.user.id
+  });
+
+  if (!client) {
+    return res.status(404).json({ success: false, error: 'Client not found' });
+  }
+
+  res.json(client);
 });
 
 app.post('/clients', authenticate, async (req, res) => {
@@ -230,7 +267,7 @@ app.put('/clients/:id', authenticate, async (req, res) => {
   const client = await Client.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     req.body,
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!client) return res.status(404).json({ success: false, error: 'Client not found' });
@@ -246,7 +283,7 @@ app.put('/clients/:id/notes', authenticate, async (req, res) => {
   const client = await Client.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     { notes: req.body.notes || '' },
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!client) {
@@ -265,7 +302,7 @@ app.put('/clients/:id/status', authenticate, async (req, res) => {
   const client = await Client.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     { status: req.body.status || 'Lead' },
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!client) {
@@ -415,7 +452,7 @@ app.put('/referrals/:id', authenticate, async (req, res) => {
   const referral = await Referral.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     req.body,
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!referral) {
@@ -504,7 +541,7 @@ app.put('/todos/:id', authenticate, async (req, res) => {
   const todo = await Todo.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     req.body,
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!todo) {
@@ -557,7 +594,7 @@ app.put('/events/:id', authenticate, async (req, res) => {
   const event = await Event.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     req.body,
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!event) {
@@ -595,24 +632,7 @@ app.get('/items', authenticate, async (req, res) => {
   const items = await Item.find({ ownerId: req.user.id }).sort({ name: 1 });
   res.json(items);
 });
-app.get('/clients/:id', authenticate, async (req, res) => {
-  const { id } = req.params;
 
-  if (!isValidId(id)) {
-    return res.status(400).json({ success: false, error: 'Invalid ID' });
-  }
-
-  const client = await Client.findOne({
-    _id: id,
-    ownerId: req.user.id
-  });
-
-  if (!client) {
-    return res.status(404).json({ success: false, error: 'Client not found' });
-  }
-
-  res.json(client);
-});
 app.post('/invoices', authenticate, async (req, res) => {
   const invoice = await Invoice.create({
     ...req.body,
@@ -642,7 +662,7 @@ app.put('/invoices/:id', authenticate, async (req, res) => {
   const invoice = await Invoice.findOneAndUpdate(
     { _id: id, ownerId: req.user.id },
     req.body,
-    { returnDocument: 'after' }
+    { new: true }
   );
 
   if (!invoice) {
@@ -697,6 +717,80 @@ app.delete('/items/:id', authenticate, async (req, res) => {
   }
 
   res.json({ success: true });
+});
+app.get('/me/default-invoice-terms', authenticate, async (req, res) => {
+  const user = await User.findById(req.user.id).select('defaultInvoiceTerms');
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  res.json({
+    success: true,
+    defaultInvoiceTerms: user.defaultInvoiceTerms
+  });
+});
+
+app.put('/me/default-invoice-terms', authenticate, async (req, res) => {
+  const { defaultInvoiceTerms } = req.body;
+
+if (!defaultInvoiceTerms || !defaultInvoiceTerms.trim()) {
+  return res.status(400).json({
+    success: false,
+    error: 'Default terms cannot be empty'
+  });
+}
+
+const user = await User.findByIdAndUpdate(
+  req.user.id,
+  { defaultInvoiceTerms },
+  { new: true }
+).select('defaultInvoiceTerms');
+
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  res.json({
+    success: true,
+    defaultInvoiceTerms: user.defaultInvoiceTerms
+  });
+});
+
+app.post('/me/default-invoice-terms/reset', authenticate, async (req, res) => {
+  const defaultTerms = `Terms & Conditions
+
+1. Payment is due by the date listed on this invoice. Late payments may be subject to additional fees as permitted by law.
+
+2. This invoice reflects the agreed services, products, or work requested. Additional work outside the original scope may result in added charges.
+
+3. Deposits, if required, are non-refundable unless otherwise agreed in writing.
+
+4. If services are canceled after work has begun, the client is responsible for payment for all work completed up to the cancellation date.
+
+5. The client agrees to provide all necessary information, approvals, and access required to complete the work in a timely manner.
+
+6. Ownership of deliverables transfers only after full payment has been received.
+
+7. Payment of this invoice constitutes acceptance of these terms and conditions.
+
+Client Signature: __________________________
+
+Date: __________________________`;
+
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    { defaultInvoiceTerms: defaultTerms },
+    { new: true }
+  ).select('defaultInvoiceTerms');
+
+  if (!user) {
+    return res.status(404).json({ success: false, error: 'User not found' });
+  }
+
+  res.json({
+    success: true,
+    defaultInvoiceTerms: user.defaultInvoiceTerms
+  });
 });
 // ---------------- FRONTEND ----------------
 import path from 'path';
