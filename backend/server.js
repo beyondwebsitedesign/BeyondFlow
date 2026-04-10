@@ -233,23 +233,9 @@ function authenticate(req, res, next) {
 }
 
 // ---------------- CLIENTS ----------------
-app.get('/clients/:id', authenticate, async (req, res) => {
-  const { id } = req.params;
-
-  if (!isValidId(id)) {
-    return res.status(400).json({ success: false, error: 'Invalid ID' });
-  }
-
-  const client = await Client.findOne({
-    _id: id,
-    ownerId: req.user.id
-  });
-
-  if (!client) {
-    return res.status(404).json({ success: false, error: 'Client not found' });
-  }
-
-  res.json(client);
+app.get('/clients', authenticate, async (req, res) => {
+  const clients = await Client.find({ ownerId: req.user.id });
+  res.json(clients);
 });
 
 app.post('/clients', authenticate, async (req, res) => {
