@@ -1233,13 +1233,19 @@ async function loadInvoice(id) {
     document.getElementById('invoice-number').value = invoice.invoiceNumber || '';
     document.getElementById('invoice-date').value = invoice.issueDate || '';
     document.getElementById('invoice-due-date').value = invoice.dueDate || '';
+    const paidAtField = document.getElementById('invoice-paid-at');
+if (paidAtField) {
+  paidAtField.value = invoice.paidAt ? invoice.paidAt.split('T')[0] : '';
+}
     document.getElementById('invoice-client').value = invoice.clientId || '';
     document.getElementById('invoice-client-name').value = invoice.clientName || '';
     document.getElementById('invoice-client-email').value = invoice.clientEmail || '';
     document.getElementById('invoice-client-phone').value = invoice.clientPhone || '';
     document.getElementById('invoice-client-website').value = invoice.clientWebsite || '';
     document.getElementById('invoice-status').value = invoice.status || 'Draft';
+    updatePaidDateVisibility();
     document.getElementById('invoice-notes').value = invoice.notes || '';
+
 
     const itemsContainer = document.getElementById('invoice-items');
     itemsContainer.innerHTML = '';
@@ -1353,6 +1359,7 @@ function collectInvoiceData() {
     invoiceNumber: document.getElementById('invoice-number').value.trim(),
     issueDate: document.getElementById('invoice-date').value,
     dueDate: document.getElementById('invoice-due-date').value,
+    paidAt: document.getElementById('invoice-paid-at')?.value || '',
     clientId: document.getElementById('invoice-client').value || '',
     clientName: document.getElementById('invoice-client-name').value.trim(),
     clientEmail: document.getElementById('invoice-client-email').value.trim(),
@@ -1413,6 +1420,7 @@ function newInvoice() {
 document.getElementById('invoice-notes').value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
 
 document.getElementById('invoice-items').innerHTML = '';
+updatePaidDateVisibility();
 addInvoiceItem();
 recalculateInvoiceTotal();
 clearSignature();
@@ -1664,7 +1672,31 @@ function downloadInvoicePDF() {
     alert('Failed to generate PDF: ' + err.message);
   }
 }
+function updatePaidDateVisibility() {
+  const statusEl = document.getElementById('invoice-status');
+  const paidAtWrap = document.getElementById('invoice-paid-at-wrap');
 
+  if (!statusEl || !paidAtWrap) return;
+
+  if (statusEl.value === 'Paid') {
+    paidAtWrap.style.display = 'block';
+  } else {
+    paidAtWrap.style.display = 'none';
+  }
+}
+function handleInvoiceStatusChange() {
+  const statusEl = document.getElementById('invoice-status');
+  const paidAtEl = document.getElementById('invoice-paid-at');
+  if (!statusEl || !paidAtEl) return;
+
+  if (statusEl.value === 'Paid' && !paidAtEl.value) {
+    paidAtEl.value = new Date().toISOString().split('T')[0];
+  }
+
+  if (statusEl.value !== 'Paid') {
+    paidAtEl.value = '';
+  }
+}
 function printInvoice() {
   const printArea = document.getElementById('invoice-print');
   printArea.innerHTML = buildInvoiceHTML();
@@ -1709,6 +1741,7 @@ document.getElementById('invoice-status').value = 'Draft';
 document.getElementById('invoice-notes').value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
 document.getElementById('invoice-items').innerHTML = '';
 
+updatePaidDateVisibility();
 addInvoiceItem();
 recalculateInvoiceTotal();
 clearSignature();
@@ -1965,7 +1998,7 @@ async function init() {
   document.getElementById('clients-list')?.addEventListener('click', handleClientActions);
   document.getElementById('referrals-list')?.addEventListener('click', handleReferralActions);
   document.getElementById('profile-projects')?.addEventListener('click', handleProjectActions);
-
+document.getElementById('invoice-status')?.addEventListener('change', handleInvoiceStatusChange);
   await fetchDefaultInvoiceTerms();
 
   fetchClients();
@@ -1979,6 +2012,9 @@ async function init() {
   fetchSavedItems();
   initSignaturePad();
   fetchRevenueStats();
+  updatePaidDateVisibility();
+
+  
 
   if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
     addInvoiceItem();
