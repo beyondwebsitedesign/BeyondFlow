@@ -466,6 +466,28 @@ label {
   align-items: center;
   gap: 12px;
 }
+.invoice-signature-wrap {
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.02);
+}
+
+#signature-pad {
+  width: 100%;
+  max-width: 500px;
+  height: 180px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #ccc;
+  display: block;
+  cursor: crosshair;
+}
+
+.signature-actions {
+  margin-top: 12px;
+}
 
 /* 🔥 MOBILE FIX */
 @media (max-width: 768px) {

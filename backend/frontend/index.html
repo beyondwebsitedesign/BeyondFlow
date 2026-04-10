@@ -220,6 +220,13 @@
     <textarea id="invoice-notes" placeholder="Notes / Terms"></textarea>
     <button onclick="saveDefaultTerms()">Save as Default Terms</button>
 <button onclick="resetDefaultTerms()">Reset Default Terms</button>
+<div class="invoice-signature-wrap">
+  <h3>Client Signature</h3>
+  <canvas id="signature-pad" width="500" height="180"></canvas>
+  <div class="signature-actions">
+    <button type="button" onclick="clearSignature()">Clear Signature</button>
+  </div>
+</div>
   </div>
 
   <h3>Line Items</h3>

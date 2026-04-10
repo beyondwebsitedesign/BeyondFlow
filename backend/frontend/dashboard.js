@@ -8,6 +8,10 @@ let invoiceClients = [];
 let savedItems = [];
 let calendar;
 let userDefaultInvoiceTerms = '';
+let signaturePad = null;
+let signatureCtx = null;
+let isDrawingSignature = false;
+let hasSignature = false;
 
 function getAuthHeaders() {
   const token = localStorage.getItem('token');
@@ -1410,9 +1414,10 @@ function newInvoice() {
   document.getElementById('invoice-status').value = 'Draft';
 document.getElementById('invoice-notes').value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
 
-  document.getElementById('invoice-items').innerHTML = '';
-  addInvoiceItem();
-  recalculateInvoiceTotal();
+document.getElementById('invoice-items').innerHTML = '';
+addInvoiceItem();
+recalculateInvoiceTotal();
+clearSignature();
 }
 function buildInvoiceHTML() {
   const data = collectInvoiceData();
@@ -1472,12 +1477,11 @@ ${data.notes ? `
 function downloadInvoicePDF() {
   try {
     const { jsPDF } = window.jspdf;
-
-    if (!jsPDF) {
-      throw new Error('jsPDF is not loaded');
-    }
+    if (!jsPDF) throw new Error('jsPDF is not loaded');
 
     const data = collectInvoiceData();
+    const signatureImage = getSignatureImage();
+
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'pt',
@@ -1488,139 +1492,175 @@ function downloadInvoicePDF() {
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 40;
     const contentWidth = pageWidth - margin * 2;
-    const lineHeight = 18;
     let y = margin;
 
-    function ensureSpace(heightNeeded = lineHeight) {
+    function ensureSpace(heightNeeded = 20) {
       if (y + heightNeeded > pageHeight - margin) {
         doc.addPage();
         y = margin;
       }
     }
 
-    function addLine(text, opts = {}) {
+    function addText(text, x, yPos, options = {}) {
       const {
         size = 12,
         bold = false,
-        spacingAfter = 8,
-        color = [17, 17, 17]
-      } = opts;
+        color = [17, 17, 17],
+        align = 'left',
+        maxWidth = contentWidth
+      } = options;
 
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(size);
       doc.setTextColor(...color);
 
-      const lines = doc.splitTextToSize(String(text ?? ''), contentWidth);
-      const blockHeight = lines.length * (size + 4);
+      if (align === 'right') {
+        doc.text(String(text), x, yPos, { align: 'right', maxWidth });
+      } else {
+        doc.text(String(text), x, yPos, { maxWidth });
+      }
+    }
+
+    function addWrappedText(text, options = {}) {
+      const {
+        size = 12,
+        bold = false,
+        color = [17, 17, 17],
+        spacingAfter = 10
+      } = options;
+
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      doc.setTextColor(...color);
+
+      const lines = doc.splitTextToSize(String(text || ''), contentWidth);
+      const blockHeight = lines.length * (size + 3);
 
       ensureSpace(blockHeight);
       doc.text(lines, margin, y);
       y += blockHeight + spacingAfter;
     }
 
-    function addDivider() {
-      ensureSpace(12);
-      doc.setDrawColor(200, 200, 200);
+    function addDivider(spacing = 16) {
+      ensureSpace(spacing);
+      doc.setDrawColor(215, 215, 215);
       doc.line(margin, y, pageWidth - margin, y);
-      y += 14;
+      y += spacing;
     }
 
-    function addTable(headers, rows) {
-      const colWidths = [250, 70, 100, 100];
-      const rowHeight = 22;
-      const startX = margin;
+    // Header
+    doc.setFillColor(18, 18, 18);
+    doc.roundedRect(margin, y, contentWidth, 92, 16, 16, 'F');
 
-      ensureSpace(rowHeight * 2);
+    addText('INVOICE', margin + 22, y + 30, {
+      size: 24,
+      bold: true,
+      color: [255, 255, 255]
+    });
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+    addText(`Invoice #: ${data.invoiceNumber || '-'}`, pageWidth - margin - 22, y + 28, {
+      size: 11,
+      color: [245, 245, 245],
+      align: 'right'
+    });
 
-      let x = startX;
-      headers.forEach((header, i) => {
-        doc.text(header, x + 4, y);
-        x += colWidths[i];
-      });
+    addText(`Issue Date: ${data.issueDate || '-'}`, pageWidth - margin - 22, y + 48, {
+      size: 11,
+      color: [245, 245, 245],
+      align: 'right'
+    });
 
-      y += 8;
-      doc.setDrawColor(180, 180, 180);
-      doc.line(startX, y, startX + colWidths.reduce((a, b) => a + b, 0), y);
-      y += 14;
+    addText(`Due Date: ${data.dueDate || '-'}`, pageWidth - margin - 22, y + 68, {
+      size: 11,
+      color: [245, 245, 245],
+      align: 'right'
+    });
+
+    y += 120;
+
+    // Bill To
+    addWrappedText('Bill To', { size: 16, bold: true, spacingAfter: 8 });
+    addWrappedText(data.clientName || '-', { spacingAfter: 4 });
+    if (data.clientEmail) addWrappedText(data.clientEmail, { spacingAfter: 4 });
+    if (data.clientPhone) addWrappedText(data.clientPhone, { spacingAfter: 4 });
+    if (data.clientWebsite) addWrappedText(data.clientWebsite, { spacingAfter: 8 });
+
+    addDivider();
+
+    // Table headers
+    const colX = [margin, margin + 260, margin + 330, margin + 430];
+    addText('Description', colX[0], y, { size: 11, bold: true });
+    addText('Qty', colX[1], y, { size: 11, bold: true });
+    addText('Rate', colX[2], y, { size: 11, bold: true });
+    addText('Amount', colX[3], y, { size: 11, bold: true });
+    y += 10;
+
+    doc.setDrawColor(190, 190, 190);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 18;
+
+    // Table rows
+    (data.items || []).forEach(item => {
+      const descLines = doc.splitTextToSize(item.description || '', 240);
+      const rowHeight = Math.max(22, descLines.length * 14);
+
+      ensureSpace(rowHeight + 10);
 
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(17, 17, 17);
 
-      rows.forEach(row => {
-        ensureSpace(rowHeight);
+      doc.text(descLines, colX[0], y);
+      doc.text(String(item.quantity ?? ''), colX[1], y);
+      doc.text(`$${Number(item.rate || 0).toFixed(2)}`, colX[2], y);
+      doc.text(`$${Number(item.amount || 0).toFixed(2)}`, colX[3], y);
 
-        let x = startX;
-        row.forEach((cell, i) => {
-          const text =
-            i === 0
-              ? String(cell ?? '')
-              : String(cell ?? '');
+      y += rowHeight;
+      doc.setDrawColor(235, 235, 235);
+      doc.line(margin, y - 6, pageWidth - margin, y - 6);
+    });
 
-          const lines = doc.splitTextToSize(text, colWidths[i] - 8);
-          doc.text(lines, x + 4, y);
+    y += 10;
 
-          x += colWidths[i];
-        });
-
-        y += rowHeight;
-        doc.setDrawColor(235, 235, 235);
-        doc.line(startX, y - 6, startX + colWidths.reduce((a, b) => a + b, 0), y - 6);
-      });
-
-      y += 10;
-    }
-
-    const items = data.items || [];
-    const total = Number(data.total || 0).toFixed(2);
-
-    addLine('Invoice', { size: 24, bold: true, spacingAfter: 12 });
-
-    addLine(`Invoice #: ${data.invoiceNumber || '-'}`, { size: 12, spacingAfter: 4 });
-    addLine(`Issue Date: ${data.issueDate || '-'}`, { size: 12, spacingAfter: 4 });
-    addLine(`Due Date: ${data.dueDate || '-'}`, { size: 12, spacingAfter: 4 });
-    addLine(`Status: ${data.status || '-'}`, { size: 12, spacingAfter: 8 });
-
-    addDivider();
-
-    addLine('Bill To', { size: 16, bold: true, spacingAfter: 8 });
-    addLine(data.clientName || '-', { spacingAfter: 4 });
-    if (data.clientEmail) addLine(data.clientEmail, { spacingAfter: 4 });
-    if (data.clientPhone) addLine(data.clientPhone, { spacingAfter: 4 });
-    if (data.clientWebsite) addLine(data.clientWebsite, { spacingAfter: 8 });
-
-    addDivider();
-
-    addTable(
-      ['Description', 'Qty', 'Rate', 'Amount'],
-      items.map(item => [
-        item.description || '',
-        String(item.quantity ?? ''),
-        `$${Number(item.rate || 0).toFixed(2)}`,
-        `$${Number(item.amount || 0).toFixed(2)}`
-      ])
-    );
-
-    addLine(`Total: $${total}`, { size: 18, bold: true, spacingAfter: 16 });
-
-    if (data.notes) {
-      addLine('Terms & Notes', { size: 16, bold: true, spacingAfter: 8 });
-      addLine(data.notes, { size: 11, spacingAfter: 20 });
-    }
-
+    // Total box
     ensureSpace(60);
-    addLine('Client Signature: ____________________________________', {
-      size: 12,
-      spacingAfter: 18
+    doc.setFillColor(245, 245, 245);
+    doc.roundedRect(pageWidth - margin - 180, y, 180, 50, 12, 12, 'F');
+    addText('Total', pageWidth - margin - 160, y + 20, { size: 12, bold: true });
+    addText(`$${Number(data.total || 0).toFixed(2)}`, pageWidth - margin - 20, y + 20, {
+      size: 18,
+      bold: true,
+      align: 'right'
     });
-    addLine('Date: ____________________________________', {
-      size: 12,
-      spacingAfter: 0
+    y += 80;
+
+    // Terms
+    if (data.notes) {
+      addWrappedText('Terms & Notes', { size: 16, bold: true, spacingAfter: 8 });
+      addWrappedText(data.notes, { size: 11, spacingAfter: 20 });
+    }
+
+    // Signature
+    ensureSpace(140);
+    addWrappedText('Client Signature', { size: 14, bold: true, spacingAfter: 12 });
+
+    if (signatureImage) {
+      doc.setDrawColor(200, 200, 200);
+      doc.roundedRect(margin, y, 240, 90, 10, 10);
+      doc.addImage(signatureImage, 'PNG', margin + 10, y + 10, 220, 70);
+      y += 110;
+    } else {
+      doc.setDrawColor(180, 180, 180);
+      doc.line(margin, y + 40, margin + 240, y + 40);
+      y += 60;
+    }
+
+    addText('Date: __________________________', margin, y, {
+      size: 12
     });
 
-    const fileName = `${data.invoiceNumber || 'invoice'}.pdf`;
-    doc.save(fileName);
+    const filename = `${data.invoiceNumber || 'invoice'}.pdf`;
+    doc.save(filename);
   } catch (err) {
     console.error('PDF error:', err);
     alert('Failed to generate PDF: ' + err.message);
@@ -1673,6 +1713,7 @@ document.getElementById('invoice-items').innerHTML = '';
 
 addInvoiceItem();
 recalculateInvoiceTotal();
+clearSignature();
 
     await fetchInvoices();
 
@@ -1715,6 +1756,100 @@ function useSavedItem(id) {
 }
 
 // ---------------- INIT ----------------
+function initSignaturePad() {
+  const canvas = document.getElementById('signature-pad');
+  if (!canvas) return;
+
+  signaturePad = canvas;
+  signatureCtx = canvas.getContext('2d');
+
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+
+  signatureCtx.fillStyle = '#ffffff';
+  signatureCtx.fillRect(0, 0, canvas.width, canvas.height);
+  signatureCtx.strokeStyle = '#111111';
+  signatureCtx.lineWidth = 2;
+  signatureCtx.lineCap = 'round';
+  signatureCtx.lineJoin = 'round';
+
+  hasSignature = false;
+
+  canvas.onmousedown = startSignature;
+  canvas.onmousemove = drawSignature;
+  canvas.onmouseup = endSignature;
+  canvas.onmouseleave = endSignature;
+
+  canvas.ontouchstart = startSignatureTouch;
+  canvas.ontouchmove = drawSignatureTouch;
+  canvas.ontouchend = endSignature;
+}
+
+function getSignaturePos(e) {
+  const rect = signaturePad.getBoundingClientRect();
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
+
+function startSignature(e) {
+  if (!signatureCtx) return;
+  isDrawingSignature = true;
+  const pos = getSignaturePos(e);
+  signatureCtx.beginPath();
+  signatureCtx.moveTo(pos.x, pos.y);
+}
+
+function drawSignature(e) {
+  if (!isDrawingSignature || !signatureCtx) return;
+  const pos = getSignaturePos(e);
+  signatureCtx.lineTo(pos.x, pos.y);
+  signatureCtx.stroke();
+  hasSignature = true;
+}
+
+function startSignatureTouch(e) {
+  e.preventDefault();
+  if (!signatureCtx || !e.touches.length) return;
+  isDrawingSignature = true;
+  const touch = e.touches[0];
+  const pos = getSignaturePos(touch);
+  signatureCtx.beginPath();
+  signatureCtx.moveTo(pos.x, pos.y);
+}
+
+function drawSignatureTouch(e) {
+  e.preventDefault();
+  if (!isDrawingSignature || !signatureCtx || !e.touches.length) return;
+  const touch = e.touches[0];
+  const pos = getSignaturePos(touch);
+  signatureCtx.lineTo(pos.x, pos.y);
+  signatureCtx.stroke();
+  hasSignature = true;
+}
+
+function endSignature() {
+  isDrawingSignature = false;
+}
+
+function clearSignature() {
+  if (!signaturePad || !signatureCtx) return;
+  signatureCtx.clearRect(0, 0, signaturePad.width, signaturePad.height);
+  signatureCtx.fillStyle = '#ffffff';
+  signatureCtx.fillRect(0, 0, signaturePad.width, signaturePad.height);
+  signatureCtx.strokeStyle = '#111111';
+  signatureCtx.lineWidth = 2;
+  signatureCtx.lineCap = 'round';
+  signatureCtx.lineJoin = 'round';
+  hasSignature = false;
+}
+
+function getSignatureImage() {
+  if (!signaturePad || !hasSignature) return null;
+  return signaturePad.toDataURL('image/png');
+}
 async function init() {
   document.getElementById('clients-list')?.addEventListener('click', handleClientActions);
   document.getElementById('referrals-list')?.addEventListener('click', handleReferralActions);
@@ -1731,6 +1866,7 @@ async function init() {
   fetchClientsForInvoice();
   fetchInvoices();
   fetchSavedItems();
+  initSignaturePad();
 
   if (document.getElementById('invoice-items') && !document.querySelector('.invoice-item-row')) {
     addInvoiceItem();
@@ -1783,3 +1919,4 @@ window.useSavedItem = useSavedItem;
 window.newInvoice = newInvoice;
 window.saveDefaultTerms = saveDefaultTerms;
 window.resetDefaultTerms = resetDefaultTerms;
+window.clearSignature = clearSignature;
