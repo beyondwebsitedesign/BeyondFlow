@@ -1469,53 +1469,37 @@ ${data.notes ? `
   `;
 }
 
-async function downloadInvoicePDF() {
-  const wrapper = document.createElement('div');
-  wrapper.style.position = 'fixed';
-  wrapper.style.inset = '0';
-  wrapper.style.background = 'rgba(255,255,255,0.01)';
-  wrapper.style.zIndex = '99999';
-  wrapper.style.pointerEvents = 'none';
-  wrapper.style.overflow = 'auto';
+function downloadInvoicePDF() {
+  const html = buildInvoiceHTML();
+  const win = window.open('', '_blank');
 
-  const temp = document.createElement('div');
-  temp.style.width = '816px';
-  temp.style.margin = '40px auto';
-  temp.style.background = '#ffffff';
-  temp.style.color = '#111111';
-  temp.style.padding = '0';
-  temp.style.boxSizing = 'border-box';
-  temp.innerHTML = buildInvoiceHTML();
+  win.document.write(`
+    <html>
+      <head>
+        <title>Invoice</title>
+        <style>
+          body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #fff;
+            color: #111;
+          }
+        </style>
+      </head>
+      <body>
+        ${html}
+      </body>
+    </html>
+  `);
 
-  wrapper.appendChild(temp);
-  document.body.appendChild(wrapper);
-
-  try {
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    await html2pdf().set({
-      margin: 0,
-      filename: `${document.getElementById('invoice-number').value || 'invoice'}.pdf`,
-      image: { type: 'jpeg', quality: 1 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: true
-      },
-      jsPDF: {
-        unit: 'pt',
-        format: 'letter',
-        orientation: 'portrait'
-      }
-    }).from(temp).save();
-  } catch (err) {
-    console.error('PDF error:', err);
-    alert('Failed to generate PDF.');
-  } finally {
-    document.body.removeChild(wrapper);
-  }
+  win.document.close();
+  win.focus();
+  setTimeout(() => {
+    win.print();
+  }, 300);
 }
+
 function printInvoice() {
   const printArea = document.getElementById('invoice-print');
   printArea.innerHTML = buildInvoiceHTML();
