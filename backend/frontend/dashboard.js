@@ -1418,7 +1418,7 @@ function buildInvoiceHTML() {
   const data = collectInvoiceData();
 
   return `
-    <div style="font-family: Arial, sans-serif; color: #111; padding: 30px;">
+    <div style="font-family: Arial, sans-serif; color: #111; background: white; padding: 30px;">
       <h1 style="margin-bottom: 8px;">Invoice</h1>
       <p><strong>Invoice #:</strong> ${data.invoiceNumber || '-'}</p>
       <p><strong>Issue Date:</strong> ${data.issueDate || '-'}</p>
@@ -1473,30 +1473,40 @@ function downloadInvoicePDF() {
   const temp = document.createElement('div');
   temp.innerHTML = buildInvoiceHTML();
 
-  temp.style.position = 'absolute';
+  temp.style.position = 'fixed';
+  temp.style.left = '-9999px';
   temp.style.top = '0';
   temp.style.width = '850px';
-  temp.style.background = 'black';
-  temp.style.padding = '0';
-  temp.style.zIndex = '-1';
+  temp.style.background = '#ffffff';
+  temp.style.padding = '20px';
+  temp.style.zIndex = '9999';
 
   document.body.appendChild(temp);
 
-  html2pdf().set({
-    margin: 0.5,
-    filename: `${document.getElementById('invoice-number').value || 'invoice'}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-  }).from(temp).save().then(() => {
-    document.body.removeChild(temp);
-  }).catch(err => {
-    console.error('PDF error:', err);
-    document.body.removeChild(temp);
-    alert('Failed to generate PDF.');
-  });
+  setTimeout(() => {
+    html2pdf().set({
+      margin: 0.5,
+      filename: `${document.getElementById('invoice-number').value || 'invoice'}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      },
+      jsPDF: {
+        unit: 'in',
+        format: 'letter',
+        orientation: 'portrait'
+      }
+    }).from(temp).save().then(() => {
+      document.body.removeChild(temp);
+    }).catch(err => {
+      console.error('PDF error:', err);
+      document.body.removeChild(temp);
+      alert('Failed to generate PDF.');
+    });
+  }, 100);
 }
-
 function printInvoice() {
   const printArea = document.getElementById('invoice-print');
   printArea.innerHTML = buildInvoiceHTML();
