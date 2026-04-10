@@ -1470,34 +1470,161 @@ ${data.notes ? `
 }
 
 function downloadInvoicePDF() {
-  const html = buildInvoiceHTML();
-  const win = window.open('', '_blank');
+  try {
+    const { jsPDF } = window.jspdf;
 
-  win.document.write(`
-    <html>
-      <head>
-        <title>Invoice</title>
-        <style>
-          body {
-            margin: 0;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            background: #fff;
-            color: #111;
-          }
-        </style>
-      </head>
-      <body>
-        ${html}
-      </body>
-    </html>
-  `);
+    if (!jsPDF) {
+      throw new Error('jsPDF is not loaded');
+    }
 
-  win.document.close();
-  win.focus();
-  setTimeout(() => {
-    win.print();
-  }, 300);
+    const data = collectInvoiceData();
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'pt',
+      format: 'letter'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    const contentWidth = pageWidth - margin * 2;
+    const lineHeight = 18;
+    let y = margin;
+
+    function ensureSpace(heightNeeded = lineHeight) {
+      if (y + heightNeeded > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+    }
+
+    function addLine(text, opts = {}) {
+      const {
+        size = 12,
+        bold = false,
+        spacingAfter = 8,
+        color = [17, 17, 17]
+      } = opts;
+
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(size);
+      doc.setTextColor(...color);
+
+      const lines = doc.splitTextToSize(String(text ?? ''), contentWidth);
+      const blockHeight = lines.length * (size + 4);
+
+      ensureSpace(blockHeight);
+      doc.text(lines, margin, y);
+      y += blockHeight + spacingAfter;
+    }
+
+    function addDivider() {
+      ensureSpace(12);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 14;
+    }
+
+    function addTable(headers, rows) {
+      const colWidths = [250, 70, 100, 100];
+      const rowHeight = 22;
+      const startX = margin;
+
+      ensureSpace(rowHeight * 2);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+
+      let x = startX;
+      headers.forEach((header, i) => {
+        doc.text(header, x + 4, y);
+        x += colWidths[i];
+      });
+
+      y += 8;
+      doc.setDrawColor(180, 180, 180);
+      doc.line(startX, y, startX + colWidths.reduce((a, b) => a + b, 0), y);
+      y += 14;
+
+      doc.setFont('helvetica', 'normal');
+
+      rows.forEach(row => {
+        ensureSpace(rowHeight);
+
+        let x = startX;
+        row.forEach((cell, i) => {
+          const text =
+            i === 0
+              ? String(cell ?? '')
+              : String(cell ?? '');
+
+          const lines = doc.splitTextToSize(text, colWidths[i] - 8);
+          doc.text(lines, x + 4, y);
+
+          x += colWidths[i];
+        });
+
+        y += rowHeight;
+        doc.setDrawColor(235, 235, 235);
+        doc.line(startX, y - 6, startX + colWidths.reduce((a, b) => a + b, 0), y - 6);
+      });
+
+      y += 10;
+    }
+
+    const items = data.items || [];
+    const total = Number(data.total || 0).toFixed(2);
+
+    addLine('Invoice', { size: 24, bold: true, spacingAfter: 12 });
+
+    addLine(`Invoice #: ${data.invoiceNumber || '-'}`, { size: 12, spacingAfter: 4 });
+    addLine(`Issue Date: ${data.issueDate || '-'}`, { size: 12, spacingAfter: 4 });
+    addLine(`Due Date: ${data.dueDate || '-'}`, { size: 12, spacingAfter: 4 });
+    addLine(`Status: ${data.status || '-'}`, { size: 12, spacingAfter: 8 });
+
+    addDivider();
+
+    addLine('Bill To', { size: 16, bold: true, spacingAfter: 8 });
+    addLine(data.clientName || '-', { spacingAfter: 4 });
+    if (data.clientEmail) addLine(data.clientEmail, { spacingAfter: 4 });
+    if (data.clientPhone) addLine(data.clientPhone, { spacingAfter: 4 });
+    if (data.clientWebsite) addLine(data.clientWebsite, { spacingAfter: 8 });
+
+    addDivider();
+
+    addTable(
+      ['Description', 'Qty', 'Rate', 'Amount'],
+      items.map(item => [
+        item.description || '',
+        String(item.quantity ?? ''),
+        `$${Number(item.rate || 0).toFixed(2)}`,
+        `$${Number(item.amount || 0).toFixed(2)}`
+      ])
+    );
+
+    addLine(`Total: $${total}`, { size: 18, bold: true, spacingAfter: 16 });
+
+    if (data.notes) {
+      addLine('Terms & Notes', { size: 16, bold: true, spacingAfter: 8 });
+      addLine(data.notes, { size: 11, spacingAfter: 20 });
+    }
+
+    ensureSpace(60);
+    addLine('Client Signature: ____________________________________', {
+      size: 12,
+      spacingAfter: 18
+    });
+    addLine('Date: ____________________________________', {
+      size: 12,
+      spacingAfter: 0
+    });
+
+    const fileName = `${data.invoiceNumber || 'invoice'}.pdf`;
+    doc.save(fileName);
+  } catch (err) {
+    console.error('PDF error:', err);
+    alert('Failed to generate PDF: ' + err.message);
+  }
 }
 
 function printInvoice() {
