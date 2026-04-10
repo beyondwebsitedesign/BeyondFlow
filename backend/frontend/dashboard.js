@@ -1474,18 +1474,31 @@ ${data.notes ? `
 }
 
 function downloadInvoicePDF() {
-  const printArea = document.getElementById('invoice-print');
-  printArea.innerHTML = buildInvoiceHTML();
-  printArea.style.display = 'block';
+  const temp = document.createElement('div');
+  temp.innerHTML = buildInvoiceHTML();
+
+  temp.style.position = 'absolute';
+  temp.style.left = '-9999px';
+  temp.style.top = '0';
+  temp.style.width = '850px';
+  temp.style.background = '#fff';
+  temp.style.padding = '0';
+  temp.style.zIndex = '-1';
+
+  document.body.appendChild(temp);
 
   html2pdf().set({
     margin: 0.5,
     filename: `${document.getElementById('invoice-number').value || 'invoice'}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2 },
+    html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-  }).from(printArea).save().then(() => {
-    printArea.style.display = 'none';
+  }).from(temp).save().then(() => {
+    document.body.removeChild(temp);
+  }).catch(err => {
+    console.error('PDF error:', err);
+    document.body.removeChild(temp);
+    alert('Failed to generate PDF.');
   });
 }
 
