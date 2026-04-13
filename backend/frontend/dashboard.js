@@ -1708,18 +1708,252 @@ function handleInvoiceStatusChange() {
 }
 
 function printInvoice() {
-  const printArea = document.getElementById('invoice-print');
-  printArea.innerHTML = buildInvoiceHTML();
+  const data = collectInvoiceData();
+  const signatureImage = data.signatureImage || getSignatureImage() || '';
+  const signedDate = data.signedAt || data.issueDate || new Date().toISOString().split('T')[0];
+
+  const printHtml = `
+    <html>
+      <head>
+        <title>Print Invoice</title>
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          body {
+            margin: 0;
+            padding: 30px;
+            font-family: Arial, sans-serif;
+            color: #111;
+            background: #fff;
+          }
+
+          .invoice-wrap {
+            max-width: 850px;
+            margin: 0 auto;
+          }
+
+          .invoice-header {
+            background: #121212;
+            color: #fff;
+            border-radius: 18px;
+            padding: 24px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 30px;
+          }
+
+          .invoice-header h1 {
+            margin: 0;
+            font-size: 32px;
+            letter-spacing: 1px;
+          }
+
+          .invoice-meta {
+            text-align: right;
+            font-size: 14px;
+            line-height: 1.8;
+          }
+
+          h2, h3 {
+            margin: 0 0 10px 0;
+          }
+
+          .section {
+            margin-bottom: 28px;
+          }
+
+          .divider {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 24px 0;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+          }
+
+          th {
+            text-align: left;
+            font-size: 14px;
+            padding: 10px 8px;
+            border-bottom: 1px solid #ccc;
+          }
+
+          td {
+            padding: 12px 8px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+          }
+
+          .total-box {
+            margin-top: 24px;
+            margin-left: auto;
+            width: 220px;
+            background: #f5f5f5;
+            border-radius: 14px;
+            padding: 18px 20px;
+          }
+
+          .total-box-label {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+          }
+
+          .total-box-value {
+            font-size: 26px;
+            font-weight: bold;
+          }
+
+          .terms {
+            margin-top: 30px;
+          }
+
+          .terms-content {
+            white-space: pre-line;
+            line-height: 1.7;
+            font-size: 14px;
+          }
+
+          .signature-section {
+            margin-top: 40px;
+          }
+
+          .signature-box {
+            width: 280px;
+            height: 110px;
+            border: 1px solid #ccc;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            margin-top: 10px;
+            overflow: hidden;
+          }
+
+          .signature-box img {
+            max-width: 240px;
+            max-height: 80px;
+            object-fit: contain;
+          }
+
+          .signature-line {
+            width: 280px;
+            border-bottom: 1px solid #999;
+            margin-top: 45px;
+            margin-bottom: 18px;
+          }
+
+          .signed-date {
+            margin-top: 14px;
+            font-size: 14px;
+          }
+
+          @media print {
+            body {
+              padding: 0;
+            }
+
+            .invoice-wrap {
+              max-width: 100%;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-wrap">
+          <div class="invoice-header">
+            <div>
+              <h1>INVOICE</h1>
+            </div>
+            <div class="invoice-meta">
+              <div><strong>Invoice #:</strong> ${data.invoiceNumber || '-'}</div>
+              <div><strong>Issue Date:</strong> ${data.issueDate || '-'}</div>
+              <div><strong>Due Date:</strong> ${data.dueDate || '-'}</div>
+              <div><strong>Status:</strong> ${data.status || '-'}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Bill To</h3>
+            <div>${data.clientName || '-'}</div>
+            ${data.clientEmail ? `<div>${data.clientEmail}</div>` : ''}
+            ${data.clientPhone ? `<div>${data.clientPhone}</div>` : ''}
+            ${data.clientWebsite ? `<div>${data.clientWebsite}</div>` : ''}
+          </div>
+
+          <hr class="divider">
+
+          <div class="section">
+            <table>
+              <thead>
+                <tr>
+                  <th>Description</th>
+                  <th>Qty</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(data.items || []).map(item => `
+                  <tr>
+                    <td>${item.description || ''}</td>
+                    <td>${item.quantity ?? ''}</td>
+                    <td>$${Number(item.rate || 0).toFixed(2)}</td>
+                    <td>$${Number(item.amount || 0).toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="total-box">
+              <div class="total-box-label">Total</div>
+              <div class="total-box-value">$${Number(data.total || 0).toFixed(2)}</div>
+            </div>
+          </div>
+
+          ${data.notes ? `
+            <div class="terms">
+              <h3>Terms & Notes</h3>
+              <div class="terms-content">${data.notes}</div>
+            </div>
+          ` : ''}
+
+          <div class="signature-section">
+            <h3>Client Signature</h3>
+            ${
+              signatureImage
+                ? `<div class="signature-box"><img src="${signatureImage}" alt="Signature"></div>`
+                : `<div class="signature-line"></div>`
+            }
+            <div class="signed-date"><strong>Date:</strong> ${signedDate}</div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
 
   const printWindow = window.open('', '_blank');
-  printWindow.document.write(`
-    <html>
-      <head><title>Print Invoice</title></head>
-      <body>${printArea.innerHTML}</body>
-    </html>
-  `);
+  if (!printWindow) {
+    alert('Unable to open print window.');
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(printHtml);
   printWindow.document.close();
-  printWindow.print();
+
+  printWindow.onload = () => {
+    printWindow.focus();
+    printWindow.print();
+  };
 }
 
 async function deleteInvoice() {
