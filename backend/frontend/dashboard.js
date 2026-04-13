@@ -1240,12 +1240,14 @@ async function loadInvoice(id) {
     document.getElementById('invoice-client-website').value = invoice.clientWebsite || '';
     document.getElementById('invoice-status').value = invoice.status || 'Draft';
     document.getElementById('invoice-notes').value = invoice.notes || '';
-        updatePaidDateVisibility();
+   loadSignatureImage(invoice.signatureImage || '');
 
 const paidAtField = document.getElementById('invoice-paid-at');
 if (paidAtField) {
   paidAtField.value = invoice.paidAt ? invoice.paidAt.split('T')[0] : '';
 }
+
+updatePaidDateVisibility();
 
     const itemsContainer = document.getElementById('invoice-items');
     itemsContainer.innerHTML = '';
@@ -1356,21 +1358,25 @@ function collectInvoiceData() {
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
 
   return {
-    invoiceNumber: document.getElementById('invoice-number').value.trim(),
-    issueDate: document.getElementById('invoice-date').value,
-    dueDate: document.getElementById('invoice-due-date').value,
-    paidAt: document.getElementById('invoice-paid-at')?.value || '',
-    clientId: document.getElementById('invoice-client').value || '',
-    clientName: document.getElementById('invoice-client-name').value.trim(),
-    clientEmail: document.getElementById('invoice-client-email').value.trim(),
-    clientPhone: document.getElementById('invoice-client-phone').value.trim(),
-    clientWebsite: document.getElementById('invoice-client-website').value.trim(),
-    status: document.getElementById('invoice-status').value,
-    notes: document.getElementById('invoice-notes').value.trim(),
-    items,
-    subtotal,
-    total: subtotal
-  };
+  invoiceNumber: document.getElementById('invoice-number').value.trim(),
+  issueDate: document.getElementById('invoice-date').value,
+  dueDate: document.getElementById('invoice-due-date').value,
+  paidAt: document.getElementById('invoice-paid-at')?.value || '',
+  clientId: document.getElementById('invoice-client').value || '',
+  clientName: document.getElementById('invoice-client-name').value.trim(),
+  clientEmail: document.getElementById('invoice-client-email').value.trim(),
+  clientPhone: document.getElementById('invoice-client-phone').value.trim(),
+  clientWebsite: document.getElementById('invoice-client-website').value.trim(),
+  status: document.getElementById('invoice-status').value,
+  notes: document.getElementById('invoice-notes').value.trim(),
+  signatureImage: getSignatureImage() || '',
+  signedAt: getSignatureImage()
+    ? (document.getElementById('invoice-date')?.value || new Date().toISOString().split('T')[0])
+    : '',
+  items,
+  subtotal,
+  total: subtotal
+};
 }
 
 async function saveInvoice() {
@@ -1486,8 +1492,8 @@ function downloadInvoicePDF() {
     const { jsPDF } = window.jspdf;
     if (!jsPDF) throw new Error('jsPDF is not loaded');
 
-    const data = collectInvoiceData();
-    const signatureImage = getSignatureImage();
+const data = collectInvoiceData();
+const signatureImage = data.signatureImage || '';
 
 console.log('signatureImage exists:', !!signatureImage);
 console.log('hasSignature:', hasSignature);
@@ -1654,8 +1660,7 @@ console.log('hasSignature:', hasSignature);
 ensureSpace(160);
 addWrappedText('Client Signature', { size: 14, bold: true, spacingAfter: 12 });
 
-const signedDate =
-  document.getElementById('invoice-date')?.value || new Date().toISOString().split('T')[0];
+const signedDate = data.signedAt || data.issueDate || new Date().toISOString().split('T')[0];
 
 if (signatureImage) {
   doc.setDrawColor(200, 200, 200);
@@ -1904,6 +1909,24 @@ function toggleRevenueBreakdown() {
 function setRevenueView(view) {
   revenueView = view;
   renderRevenueBreakdown();
+}
+function loadSignatureImage(dataUrl) {
+  if (!signaturePad || !signatureCtx) return;
+
+  clearSignature();
+
+  if (!dataUrl) return;
+
+  const img = new Image();
+  img.onload = () => {
+    signatureCtx.drawImage(img, 0, 0, signaturePad.width, signaturePad.height);
+    hasSignature = true;
+  };
+  img.src = dataUrl;
+}
+
+function getStoredSignatureDate(invoice) {
+  return invoice?.signedAt || invoice?.issueDate || '';
 }
 // ---------------- INIT ----------------
 function initSignaturePad() {

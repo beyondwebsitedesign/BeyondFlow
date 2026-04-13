@@ -193,6 +193,8 @@ const InvoiceSchema = new Schema({
   clientWebsite: { type: String, default: '' },
   status: { type: String, default: 'Draft' },
   notes: { type: String, default: '' },
+  signatureImage: { type: String, default: '' },
+signedAt: { type: String, default: '' },
   items: {
     type: [
       {
