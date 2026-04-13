@@ -1411,6 +1411,7 @@ function newInvoice() {
   document.getElementById('invoice-number').value = '';
   document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('invoice-due-date').value = '';
+  document.getElementById('invoice-paid-at').value = '';
   document.getElementById('invoice-client').value = '';
   document.getElementById('invoice-client-name').value = '';
   document.getElementById('invoice-client-email').value = '';
@@ -1418,8 +1419,8 @@ function newInvoice() {
   document.getElementById('invoice-client-website').value = '';
   document.getElementById('invoice-status').value = 'Draft';
 document.getElementById('invoice-notes').value = userDefaultInvoiceTerms || DEFAULT_INVOICE_TERMS;
-
 document.getElementById('invoice-items').innerHTML = '';
+
 updatePaidDateVisibility();
 addInvoiceItem();
 recalculateInvoiceTotal();
@@ -1732,6 +1733,7 @@ async function deleteInvoice() {
 document.getElementById('invoice-number').value = '';
 document.getElementById('invoice-date').value = '';
 document.getElementById('invoice-due-date').value = '';
+document.getElementById('invoice-paid-at').value = '';
 document.getElementById('invoice-client').value = '';
 document.getElementById('invoice-client-name').value = '';
 document.getElementById('invoice-client-email').value = '';
