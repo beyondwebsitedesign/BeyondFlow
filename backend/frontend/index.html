@@ -230,12 +230,12 @@
   <label for="invoice-paid-at">Paid Date</label>
   <input type="date" id="invoice-paid-at">
 </div>    
-    <select id="invoice-status">
-      <option value="Draft">Draft</option>
-      <option value="Sent">Sent</option>
-      <option value="Paid">Paid</option>
-      <option value="Overdue">Overdue</option>
-    </select>
+    <select id="invoice-status" onchange="handleInvoiceStatusChange()">
+  <option value="Draft">Draft</option>
+  <option value="Sent">Sent</option>
+  <option value="Paid">Paid</option>
+  <option value="Overdue">Overdue</option>
+</select>
 
     <textarea id="invoice-notes" placeholder="Notes / Terms"></textarea>
     <button onclick="saveDefaultTerms()">Save as Default Terms</button>

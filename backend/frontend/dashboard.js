@@ -1233,19 +1233,19 @@ async function loadInvoice(id) {
     document.getElementById('invoice-number').value = invoice.invoiceNumber || '';
     document.getElementById('invoice-date').value = invoice.issueDate || '';
     document.getElementById('invoice-due-date').value = invoice.dueDate || '';
-    const paidAtField = document.getElementById('invoice-paid-at');
-if (paidAtField) {
-  paidAtField.value = invoice.paidAt ? invoice.paidAt.split('T')[0] : '';
-}
     document.getElementById('invoice-client').value = invoice.clientId || '';
     document.getElementById('invoice-client-name').value = invoice.clientName || '';
     document.getElementById('invoice-client-email').value = invoice.clientEmail || '';
     document.getElementById('invoice-client-phone').value = invoice.clientPhone || '';
     document.getElementById('invoice-client-website').value = invoice.clientWebsite || '';
     document.getElementById('invoice-status').value = invoice.status || 'Draft';
-    updatePaidDateVisibility();
     document.getElementById('invoice-notes').value = invoice.notes || '';
+        updatePaidDateVisibility();
 
+const paidAtField = document.getElementById('invoice-paid-at');
+if (paidAtField) {
+  paidAtField.value = invoice.paidAt ? invoice.paidAt.split('T')[0] : '';
+}
 
     const itemsContainer = document.getElementById('invoice-items');
     itemsContainer.innerHTML = '';
@@ -1676,28 +1676,26 @@ function downloadInvoicePDF() {
 function updatePaidDateVisibility() {
   const statusEl = document.getElementById('invoice-status');
   const paidAtWrap = document.getElementById('invoice-paid-at-wrap');
+  const paidAtEl = document.getElementById('invoice-paid-at');
 
-  if (!statusEl || !paidAtWrap) return;
+  if (!statusEl || !paidAtWrap || !paidAtEl) return;
 
   if (statusEl.value === 'Paid') {
     paidAtWrap.style.display = 'block';
+
+    if (!paidAtEl.value) {
+      paidAtEl.value = new Date().toISOString().split('T')[0];
+    }
   } else {
     paidAtWrap.style.display = 'none';
-  }
-}
-function handleInvoiceStatusChange() {
-  const statusEl = document.getElementById('invoice-status');
-  const paidAtEl = document.getElementById('invoice-paid-at');
-  if (!statusEl || !paidAtEl) return;
-
-  if (statusEl.value === 'Paid' && !paidAtEl.value) {
-    paidAtEl.value = new Date().toISOString().split('T')[0];
-  }
-
-  if (statusEl.value !== 'Paid') {
     paidAtEl.value = '';
   }
 }
+
+function handleInvoiceStatusChange() {
+  updatePaidDateVisibility();
+}
+
 function printInvoice() {
   const printArea = document.getElementById('invoice-print');
   printArea.innerHTML = buildInvoiceHTML();
@@ -2072,3 +2070,4 @@ window.resetDefaultTerms = resetDefaultTerms;
 window.clearSignature = clearSignature;
 window.toggleRevenueBreakdown = toggleRevenueBreakdown;
 window.setRevenueView = setRevenueView;
+window.handleInvoiceStatusChange = handleInvoiceStatusChange;
