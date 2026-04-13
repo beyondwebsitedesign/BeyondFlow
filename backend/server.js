@@ -855,11 +855,7 @@ app.post('/me/default-invoice-terms/reset', authenticate, async (req, res) => {
 
 6. Ownership of deliverables transfers only after full payment has been received.
 
-7. Payment of this invoice constitutes acceptance of these terms and conditions.
-
-Client Signature: __________________________
-
-Date: __________________________`;
+7. Payment of this invoice constitutes acceptance of these terms and conditions.`;
 
   const user = await User.findByIdAndUpdate(
     req.user.id,

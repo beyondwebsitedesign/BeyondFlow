@@ -1489,6 +1489,9 @@ function downloadInvoicePDF() {
     const data = collectInvoiceData();
     const signatureImage = getSignatureImage();
 
+console.log('signatureImage exists:', !!signatureImage);
+console.log('hasSignature:', hasSignature);
+
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'pt',
@@ -1648,23 +1651,26 @@ function downloadInvoicePDF() {
     }
 
     // Signature
-    ensureSpace(140);
-    addWrappedText('Client Signature', { size: 14, bold: true, spacingAfter: 12 });
+ensureSpace(160);
+addWrappedText('Client Signature', { size: 14, bold: true, spacingAfter: 12 });
 
-    if (signatureImage) {
-      doc.setDrawColor(200, 200, 200);
-      doc.roundedRect(margin, y, 240, 90, 10, 10);
-      doc.addImage(signatureImage, 'PNG', margin + 10, y + 10, 220, 70);
-      y += 110;
-    } else {
-      doc.setDrawColor(180, 180, 180);
-      doc.line(margin, y + 40, margin + 240, y + 40);
-      y += 60;
-    }
+const signedDate =
+  document.getElementById('invoice-date')?.value || new Date().toISOString().split('T')[0];
 
-    addText('Date: __________________________', margin, y, {
-      size: 12
-    });
+if (signatureImage) {
+  doc.setDrawColor(200, 200, 200);
+  doc.roundedRect(margin, y, 260, 90, 10, 10);
+  doc.addImage(signatureImage, 'PNG', margin + 10, y + 10, 240, 65);
+  y += 110;
+} else {
+  doc.setDrawColor(180, 180, 180);
+  doc.line(margin, y + 40, margin + 260, y + 40);
+  y += 60;
+}
+
+addText(`Date: ${signedDate}`, margin, y, {
+  size: 12
+});
 
     const filename = `${data.invoiceNumber || 'invoice'}.pdf`;
     doc.save(filename);
