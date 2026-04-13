@@ -186,6 +186,7 @@ const InvoiceSchema = new Schema({
   invoiceNumber: String,
   issueDate: String,
   dueDate: String,
+  paidAt: { type: String, default: '' },
   clientId: { type: String, default: '' },
   clientName: { type: String, default: '' },
   clientEmail: { type: String, default: '' },
@@ -684,8 +685,6 @@ app.get('/stats/revenue', authenticate, async (req, res) => {
     }))
     .sort((a, b) => a.year - b.year);
 
-  const paidInvoiceCount = paidInvoices.length;
-
   res.json({
     success: true,
     thisMonthRevenue,
@@ -693,7 +692,7 @@ app.get('/stats/revenue', authenticate, async (req, res) => {
     thisYearRevenue,
     lastYearRevenue,
     outstandingRevenue,
-    paidInvoiceCount,
+    paidInvoiceCount: paidInvoices.length,
     monthlyBreakdown,
     yearlyBreakdown
   });
@@ -706,6 +705,10 @@ app.post('/invoices', authenticate, async (req, res) => {
 
   if (invoiceData.status === 'Paid' && !invoiceData.paidAt) {
     invoiceData.paidAt = new Date().toISOString();
+  }
+
+  if (invoiceData.status !== 'Paid') {
+    invoiceData.paidAt = '';
   }
 
   const invoice = await Invoice.create(invoiceData);
@@ -741,7 +744,7 @@ app.put('/invoices/:id', authenticate, async (req, res) => {
 
   const updateData = { ...req.body };
 
-  if (updateData.status === 'Paid' && !existingInvoice.paidAt) {
+  if (updateData.status === 'Paid' && !updateData.paidAt) {
     updateData.paidAt = new Date().toISOString();
   }
 
